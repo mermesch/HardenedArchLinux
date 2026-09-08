@@ -1,4 +1,4 @@
-## 9_VPN selection
+## 09_VPN selection
 
 ## You can argue whether choosing a VPN is secure. Read: https://www.whonix.org/wiki/Whonix_versus_VPNs#Security_Experts_Opinion_on_VPNs. There are concerns with many VPNs like NordVPN,PIA, CyberGhost, and ExpressVPN. I'm not going to explain the risks of using a VPN provider.
 ## Reasons for people to use a VPN with DAITA before connecting to tor:
