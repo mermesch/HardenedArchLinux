@@ -48,9 +48,9 @@ This guide shows you a strict path, but you are not forced to do everything. You
 - **22_DISABLE_COREDUMPS** - Disable core dumps.
 - **23_SYSTEM_MAP** - System.map shredded at every boot.
 - **24_USBGUARD** - USBGuard: only whitelisted USB devices work, unknown or tampered devices are blocked.
-- **25_PERMISSIONS** - Permission hardening, SETUID whitelist and file capabilities set where needed, reapplied after every update by a pacman hook.
+- **25_HARDENED_MALLOC** - Hardened memory allocator preloaded system-wide, making heap exploitation much harder.
 - **26_VIRT_MANAGER** - VMs with virt-manager/QEMU in the unprivileged user session. Clock randomized at boot and kvm-clock disabled to defeat time-based fingerprinting, passt network stack confined with AppArmor.
-- **27_HARDENED_MALLOC** - Hardened memory allocator preloaded system-wide, making heap exploitation much harder.
+- **27_PERMISSIONS** - Permission hardening, SETUID whitelist and file capabilities set where needed, reapplied after every update by a pacman hook.
 - **28_BASH_HISTORY** - Bash history disabled for all users and shells, leaving no command traces on disk when /var/log is mounted as tmpfs.
 - **29_POST_INSTALLATION_HARDENING** - Post-installation checks and maintenance.
 
