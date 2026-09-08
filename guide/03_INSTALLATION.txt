@@ -1,4 +1,4 @@
-## 3_INSTALLATION
+## 03_INSTALLATION
 
 ## Arch Linux Installation with Full Disk Encryption and Secure Boot
 ## DISCLAIMER: The installation instructions also work in a VM. Just enable UEFI for the VM instead of legacy BIOS.
