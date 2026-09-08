@@ -1,4 +1,4 @@
-## 5_NETWORK configuration
+## 05_NETWORK configuration
 ## https://wiki.archlinux.org/title/Network_configuration
 
 ## Programs like NetworkManager or dhcpcd are complex. They run constantly in the background, process network data, and have a large attack surface. If the adversary active on your local network finds an RCE in NetworkManager, they can hack your computer.
