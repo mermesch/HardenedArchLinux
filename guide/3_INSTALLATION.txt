@@ -1,0 +1,258 @@
+## 3_INSTALLATION
+
+## Arch Linux Installation with Full Disk Encryption and Secure Boot
+## DISCLAIMER: The installation instructions also work in a VM. Just enable UEFI for the VM instead of legacy BIOS.
+## Download the Arch Linux ISO from the Arch Linux website.
+## Flash the ISO to a bootable USB drive.
+## Boot into your BIOS, disable Secure Boot, and make sure the date and time are set correctly!
+## Boot from the USB drive and select the default Arch Linux option. Once you land at the root shell, confirm that the system booted in UEFI mode:
+ls /sys/firmware/efi/efivars
+
+## To enable internet, I like to use a static IP and disable services with open ports. Since no firewall is enabled during the installation, I don't like the attack surface of the default way of connecting with the internet. A new ISO is released every month, and RCEs discovered in the meantime are not patched until the next release. If you don't care about this attack surface, you don't have to mask sshd or set a static IP with a nameserver. Plugging in a LAN cable is enough.
+## Check the services with open ports that you don't use:
+ss -tulnp
+
+## Shut down and mask those services:
+systemctl stop sshd
+systemctl mask sshd
+
+## Check your network interface:
+ip a
+
+## If you want to set a static IP, replace the interface eth0 with your interface:
+#ip link set dev eth0 up
+#ip addr add 192.168.1.100/24 brd + dev eth0
+#ip route add default via 192.168.1.1
+
+## Set a nameserver. Open the file:
+#vim /etc/resolv.conf
+```ini
+nameserver 8.8.4.4
+```
+
+## Plugin LAN cable
+## Verify connectivity with a quick ping:
+ping -c 3 archlinux.org
+
+## If the ping resolves and returns replies, your network is good. Also sync the system clock so package signatures validate correctly:
+timedatectl set-ntp true
+
+## NVMe disk wipe. Not all NVMe drives support all sanitize actions. Check what your drive supports:
+sudo nvme id-ctrl /dev/nvme0 -H | grep -i "sanitize"
+
+## Available wipe options. You can every command if you want to:
+nvme format /dev/nvme0n1 --ses=2              # crypto erase: instant, destroys key, covers relocated data
+nvme sanitize /dev/nvme0n1 --sanact=crypto    # same idea, covers whole NVM subsystem (old nvme-cli: --nvme-sanact=4)
+nvme sanitize /dev/nvme0n1 --sanact=block     # block erase: minutes, spec requires recovery to be infeasible,
+                                              # including relocated/deallocated data (old CLI: --nvme-sanact=2)
+nvme format /dev/nvme0n1 --ses=1              # weakest firmware option: user data erase only
+
+## SSD disk wipe:
+## If enhanced erase is unsupported, use --security-erase instead.
+hdparm -I /dev/sdX | grep -i -A6 security     # want: "not frozen", "enhanced erase supported", times
+hdparm --user-master u --security-set-pass p /dev/sdX
+hdparm --user-master u --security-erase-enhanced p /dev/sdX    # enhanced covers retired sectors too
+
+
+## Overwrite the disk. This is mostly for HDDs, but I run it on SSD/NVMe too, after running the commands above.
+## NEVER use /dev/zero before setting up LUKS. For more information see: https://wiki.archlinux.org/title/Securely_wipe_disk
+dd if=/dev/urandom of=/dev/nvme0n1 bs=4M status=progress conv=fsync
+
+## Partition the disk. We need two partitions on a GPT partition table: a 512 MiB EFI System Partition and the rest for LUKS. Using sgdisk makes this quick and scriptable. Replace /dev/nvme0n1 with your actual disk if it is different (check with lsblk).
+sgdisk --zap-all /dev/nvme0n1
+sgdisk -n 1:0:+512M -t 1:EF00 -c 1:"EFI" /dev/nvme0n1
+sgdisk -n 2:0:0 -t 2:8309 -c 2:"LUKS" /dev/nvme0n1
+
+## Verify that the partition layout looks correct:
+sgdisk -p /dev/nvme0n1
+
+## You should see two partitions: /dev/nvme0n1p1 at 512 MiB with type EF00, and /dev/nvme0n1p2 using the remaining space with type 8309 (Linux LUKS).
+## Make an encrypted disk with a strong password that is hard for quantum computers to break:
+cryptsetup --type luks2 --cipher aes-xts-plain64 --hash sha512 --iter-time 30000 --key-size 512 --pbkdf argon2id --use-urandom --verify-passphrase luksFormat /dev/nvme0n1p2
+
+## Once formatted, open the LUKS container and map it to /dev/mapper/cryptlvm:
+cryptsetup luksOpen /dev/nvme0n1p2 cryptlvm
+
+## Create a physical volume, a volume group, and four logical volumes inside the unlocked LUKS container. This gives you separate root, var, and two home volumes while keeping everything encrypted under one passphrase. Do not make a swap partition. With swap enabled, the VM can leave traces on the host.
+pvcreate /dev/mapper/cryptlvm
+vgcreate archvg /dev/mapper/cryptlvm
+lvcreate -L 30G archvg -n root
+lvcreate -L 15G archvg -n var
+lvcreate -L 100G archvg -n home
+lvcreate -l 100%FREE archvg -n home-user
+
+## Verify the layout with lsblk. You should see the LVM volumes nested under the LUKS container:
+lsblk
+
+## Format the EFI partition as FAT32, and root, var, and the home volumes as ext4:
+mkfs.fat -F32 /dev/nvme0n1p1
+mkfs.ext4 /dev/archvg/root
+mkfs.ext4 /dev/archvg/var
+mkfs.ext4 /dev/archvg/home
+mkfs.ext4 /dev/archvg/home-user
+
+## Mount everything in the correct order. Root first, then create the mount points for EFI and home:
+mount /dev/archvg/root /mnt
+mkdir -p /mnt/boot/efi /mnt/home /mnt/var
+mount /dev/nvme0n1p1 /mnt/boot/efi
+mount /dev/archvg/var /mnt/var
+mount /dev/archvg/home /mnt/home
+mkdir -p /mnt/home/user
+mount /dev/archvg/home-user /mnt/home/user
+
+## Run lsblk again to confirm all mount points look correct before installing the base system:
+lsblk
+
+## Use pacstrap to install the base system along with essential packages. The lvm2 package is critical here. Without it, the initramfs cannot assemble LVM volumes at boot.
+## You can also install the linux-hardened kernel instead of the default one. We harden most of the kernel ourselves; linux-hardened is slightly better hardened, while the default upstream Linux kernel gets vulnerability fixes quicker. You can install "linux-hardened linux-hardened-headers" instead if you want to.
+pacstrap -K /mnt base base-devel linux linux-headers lvm2 grub efibootmgr vim intel-ucode
+
+## Set the machine ID to something generic, such as the Whonix ID:
+echo b08dfa6083e7567a1921a715000001fb > /mnt/etc/machine-id
+
+## Generate the filesystem table using UUIDs for reliable mounting:
+genfstab -U /mnt >> /mnt/etc/fstab
+
+## Check the generated fstab to make sure all entries are present:
+cat /mnt/etc/fstab
+
+## You should see entries for:
+## /dev/archvg/root mounted at /
+## /dev/archvg/home at /home
+## /dev/mapper/archvg-home--user at /home/user
+## /dev/mapper/archvg-var at /var
+## /dev/nvme0n1p1 at /boot/efi
+
+## Enter the new system with arch-chroot and configure the basics:
+arch-chroot /mnt
+
+## Set the hostname, locale, and timezone, and sync the hardware clock:
+echo host > /etc/hostname
+echo en_US.UTF-8 UTF-8  >> /etc/locale.gen
+locale-gen
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+hwclock --systohc
+
+## Set up /etc/hosts. Open the file:
+vim /etc/hosts
+```ini
+127.0.0.1 localhost
+::1 localhost
+127.0.1.1 host.localdomain host
+```
+
+## Set the root password temporarily:
+passwd
+
+## Create an admin account with sudo:
+useradd -m -G wheel admin
+passwd admin
+
+## Ensure wheel members can use sudo. Edit with visudo:
+visudo
+
+## Make sure this line is present and NOT commented out:
+```ini
+%wheel ALL=(ALL) ALL
+```
+
+## Configure mkinitcpio for LUKS, the critical step. This is where most encrypted Arch installs fail. The initramfs needs the encrypt and lvm2 hooks to unlock the LUKS container and assemble LVM at boot. The order matters. Get it wrong and the system will not boot.
+## Open the mkinitcpio configuration file:
+vim /etc/mkinitcpio.conf
+
+## Find the HOOKS line and replace it with the following:
+```ini
+HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck)
+```
+
+## Key points about the hook order:
+## keyboard and keymap must come before encrypt, otherwise you cannot type the passphrase at boot.
+## encrypt must come before lvm2, the LUKS container must be opened before LVM can scan for volumes.
+## lvm2 must come before filesystems, volumes must be assembled before they can be mounted.
+## Regenerate the initramfs with the new hooks:
+mkinitcpio -P
+
+## This setup does not use a systemd-based initramfs.
+## Configure GRUB for LUKS encryption. GRUB needs two specific configurations to work with LUKS. First, get the UUID of the LUKS partition (not the mapper device, but the raw partition):
+blkid -s UUID -o value /dev/nvme0n1p2
+
+## Copy that UUID. Now open the GRUB configuration file:
+vim /etc/default/grub
+
+## Make two changes. First, set the kernel command line to point to the encrypted device and the root volume. Replace YOUR-UUID-HERE with the UUID from the previous command:
+```ini
+GRUB_CMDLINE_LINUX="cryptdevice=UUID=YOUR-UUID-HERE:cryptlvm root=/dev/archvg/root"
+```
+
+## Second, enable GRUB's built-in cryptodisk support. Find this line (it is commented out by default) and uncomment it.
+## This tells GRUB to prompt for a passphrase before it can read its own configuration from the encrypted disk. Without this setting, GRUB cannot access the boot files at all.
+```ini
+GRUB_ENABLE_CRYPTODISK=y
+```
+
+## Install GRUB to the EFI partition. If you do not add all of the modules here, they will be blacklisted and the boot with Secure Boot will not work:
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --disable-shim-lock --modules="tpm all_video boot cat chain configfile echo efifwsetup efi_uga efi_gop efinet net fat font gettext gfxmenu gfxterm gfxterm_background gzio halt help hfsplus keystatus loadenv loopback linux ls lsefi lsefimmap lsefisystab lssal memdisk minicmd normal probe reboot regexp search search_fs_uuid search_fs_file search_label sleep smbios squash4 test true video video_fb xfs zfs zfscrypt zfsinfo gcry_crc bli terminal priority_queue datetime bufio cpuid"
+
+## If you want to use shim instead of tpm, use this variant:
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --sbat=/usr/share/grub/sbat.csv --modules="all_video boot cat chain configfile echo efifwsetup efi_uga efi_gop efinet net fat font gettext gfxmenu gfxterm gfxterm_background gzio halt help hfsplus keystatus loadenv loopback linux ls lsefi lsefimmap lsefisystab lssal memdisk minicmd normal probe reboot regexp search search_fs_uuid search_fs_file search_label sleep smbios squash4 test true video video_fb xfs zfs zfscrypt zfsinfo gcry_crc bli terminal priority_queue datetime bufio cpuid"
+
+## Create the GRUB configuration:
+grub-mkconfig -o /boot/grub/grub.cfg
+
+## Exit and reboot:
+exit
+cd && umount -R /mnt
+reboot
+
+
+
+## TROUBLESHOOTING
+## GRUB reports a wrong password. Argon2id uses 1 GB of RAM. On some computers, GRUB can't allocate enough memory. If that happens, you get the "wrong password" error directly after trying the password. If it works, there will be a waiting time after each password attempt. If it does not work, you need to convert the key to use fewer MB.
+## Boot the Arch ISO again and run:
+cryptsetup luksConvertKey --pbkdf argon2id --pbkdf-memory 524288 --hash sha512 --iter-time 30000 /dev/nvme0n1p2
+
+## Check that the memory is set correctly:
+cryptsetup luksDump /dev/nvme0n1p2
+
+## If the password is wrong again, try fewer MB until it works.
+## Computer reboots after typing the password. Some computers reboot if the GRUB loading time is too long. You need to set a lower iter-time.
+## If --iter-time 20000 does not work, try 15000. You can keep going lower.
+## Boot the Arch ISO again and run:
+cryptsetup luksConvertKey --pbkdf argon2id --hash sha512 --iter-time 20000 /dev/nvme0n1p2
+
+## What to do when GRUB is not visible after a reboot? The system does not find GRUB at boot. There is no GRUB boot entry.
+## FIRST OPTION TO TRY: Boot into arch-chroot again and check efibootmgr. Do you see the boot entry? If not, try to enter it:
+efibootmgr -v
+efibootmgr --create --disk /dev/sda1 --part 1 --loader /EFI/GRUB/grubx64.efi --label "GRUB" --unicode
+efibootmgr -v
+
+## SECOND OPTION TO TRY: Reboot and check whether the boot entry is visible in the BIOS. If not, boot the Arch live ISO and choose EFI Shell in the menu. For more information see: https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface#UEFI_Shell
+## Check for boot entries:
+Shell> bcfg boot dump -v
+
+## Check where your grubx64.efi is located:
+Shell> FS0:
+
+## cd to the location. If it is not there, check FS01, FS02, FS03 / FS1, FS2, FS3:
+bcfg boot add 3 FS1:\EFI\GRUB\grubx64.efi "GRUB"
+## Reboot and check the BIOS menu. If the entry is not there, follow the THIRD OPTION.
+
+## THIRD OPTION: Some UEFI firmware requires a bootable file at a known location before it will show UEFI NVRAM boot entries. If this is the case, grub-install will claim that efibootmgr has added an entry to boot GRUB; however, the entry will not show up in the VisualBIOS boot order selector. The solution is to install GRUB at the default/fallback boot path. You do this by adding the --removable flag to grub-install.
+## Shim can't be used together with the --removable flag. Since grubx64.efi is hardcoded in shim, it can't use BOOTX64.efi. You need to use tpm:
+sudo grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --disable-shim-lock --removable --modules="tpm all_video boot cat chain configfile echo efifwsetup efi_uga efi_gop efinet net fat font gettext gfxmenu gfxterm gfxterm_background gzio halt help hfsplus keystatus loadenv loopback linux ls lsefi lsefimmap lsefisystab lssal memdisk minicmd normal probe reboot regexp search search_fs_uuid search_fs_file search_label sleep smbios squash4 test true video video_fb xfs zfs zfscrypt zfsinfo gcry_crc bli terminal priority_queue datetime bufio cpuid"
+
+## References:
+- https://wiki.archlinux.org/title/Installation_guide
+- https://mako088.github.io/arch/hardening_arch.html
+- https://wiki.archlinux.org/title/GRUB#Default/fallback_boot_path
+- https://kurt.link/guide/archlinux-install
+- https://blog.leomercier.dev/posts/artix-part-1
+- https://computingforgeeks.com/install-arch-linux-luks-encryption/
+- https://whhone.com/posts/arch-linux-full-disk-encryption/
+- https://gloutnikov.com/post/arch-linux-install-notes/
+- https://github.com/0xArti/WeLoveArch
+- https://lopes.id/log/arch-linux-hardened-install/
+- https://github.com/silentz/arch-linux-install-guide
+- https://github.com/joelmathewthomas/archinstall-luks2-lvm2-secureboot-tpm2
+- https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/install.sh
+- https://svw.au/guides/archbtw/arch-install-secure-boot-btrfs-tpm2-luks-unified-kernel-images/
