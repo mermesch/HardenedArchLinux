@@ -1,0 +1,100 @@
+## 16_TOR
+
+## Install tor:
+sudo pacman -S tor
+
+## Add the tor AppArmor profile:
+sudo vim /etc/apparmor.d/system_tor
+```ini
+# vim:syntax=apparmor
+#include <tunables/global>
+
+profile system_tor flags=(attach_disconnected) {
+  #include <abstractions/tor>
+
+  owner /var/lib/tor/** rwk,
+  owner /var/lib/tor/ r,
+  owner /var/log/tor/* w,
+
+  # During startup, tor (as root) tries to open various things such as
+  # directories via check_private_dir().  Let it.
+  /var/lib/tor/** r,
+
+  /{,var/}run/tor/ r,
+  /{,var/}run/tor/control w,
+  /{,var/}run/tor/socks w,
+  /{,var/}run/tor/tor.pid w,
+  /{,var/}run/tor/control.authcookie w,
+  /{,var/}run/tor/control.authcookie.tmp rw,
+  /{,var/}run/systemd/notify w,
+
+  # Site-specific additions and overrides. See local/README for details.
+  #include <local/system_tor>
+}
+```
+
+## Add the tor AppArmor abstractions:
+sudo vim /etc/apparmor.d/abstractions/tor
+```ini
+# vim:syntax=apparmor
+
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  network tcp,
+  network udp,
+
+  capability chown,
+  capability dac_read_search,
+  capability fowner,
+  capability fsetid,
+  capability setgid,
+  capability setuid,
+
+  /usr/bin/tor r,
+  /usr/sbin/tor r,
+
+  # Needed by obfs4proxy
+  /proc/sys/net/core/somaxconn r,
+
+  /proc/sys/kernel/random/uuid r,
+  /sys/devices/system/cpu/ r,
+  /sys/devices/system/cpu/** r,
+
+  /etc/tor/** r,
+  /usr/share/tor/** r,
+
+  /usr/bin/obfsproxy PUx,
+  /usr/bin/obfs4proxy Pix,
+
+  /usr/bin/snowflake-client Pix,
+```
+
+## The local override file must exist for the profile to load. Create it empty:
+sudo touch /etc/apparmor.d/local/system_tor
+
+## Make the tor service use the AppArmor profile with a systemd drop-in:
+sudo mkdir /usr/lib/systemd/system/tor.service.d
+sudo vim /usr/lib/systemd/system/tor.service.d/40-apparmor.conf
+## Add the following to the [Service] section:
+```ini
+ReadWriteDirectories=-/proc
+ReadWriteDirectories=-/run
+# Apparmor
+AppArmorProfile=system_tor
+```
+
+## Permissions
+sudo chmod 755 /usr/lib/systemd/system/tor.service.d
+sudo chmod 644 /usr/lib/systemd/system/tor.service.d/40-apparmor.conf
+
+## Reboot, start tor and verify that AppArmor is active.
+sudo systemctl start tor
+sudo systemctl status tor
+sudo aa-status
+
+## If you use chronyd instead of sdwdate I should not enable tor on boot. Two reasons: configuration errors during early boot could leak the real IP to tor guard nodes, and permanently running tor would let guard nodes observe your VPN exit IPs over time. I would start it manually, only to check for updates.
+sudo systemctl start tor
+
+## If you use sdwdate for time sync, consider creating a script that disables tor after the sdwdate time sync on boot, to prevent guard nodes from observing your VPN exit IP rotations.

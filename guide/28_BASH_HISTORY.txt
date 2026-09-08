@@ -1,0 +1,54 @@
+## 28_BASH_HISTORY
+
+## If you don't want traces on disk showing that you rotated your Mullvad key or typed other commands, you can disable bash history. The following settings disable history for all users, in login shells and non-login shells.
+
+## Settings for login shells (TTY, SSH, sudo -i). Create the file:
+sudo vim /etc/profile.d/99-no-history.sh
+```ini
+# No history on disk for any shell, any user
+HISTFILE=/dev/null
+HISTSIZE=0
+HISTFILESIZE=0
+HISTCONTROL=ignoreboth
+```
+
+## Set the permissions:
+sudo chmod 644 /etc/profile.d/99-no-history.sh
+
+## The same settings for non-login shells (every desktop terminal window, sudo -s). Without this part, desktop terminals keep writing history. Open the file:
+sudo vim /etc/bash.bashrc
+
+## Add the following lines at the end of the file:
+```ini
+# No history on disk for any shell, any user
+HISTFILE=/dev/null
+HISTSIZE=0
+HISTFILESIZE=0
+HISTCONTROL=ignoreboth
+```
+
+## ~/.bashrc is sourced after /etc/bash.bashrc. If it sets HISTFILE, HISTSIZE or HISTFILESIZE itself, remove those lines, they would override the system-wide settings.
+
+## Reboot:
+sudo reboot
+
+## After the reboot, delete the old history files once. Everything typed before this change is still on disk:
+sudo rm -f /root/.bash_history /home/*/.bash_history
+
+## Verify both code paths:
+```
+# in a TTY or SSH session:
+echo $HISTFILE        # must print /dev/null
+
+# in a desktop terminal window:
+echo $HISTFILE        # must also print /dev/null
+```
+
+## Run a few commands in the desktop terminal, close it, and confirm the file was not recreated:
+```
+ls -la ~/.bash_history
+```
+
+## References:
+- https://wiki.archlinux.org/title/Bash
+- https://www.gnu.org/software/bash/manual/html_node/Bash-Variables.html

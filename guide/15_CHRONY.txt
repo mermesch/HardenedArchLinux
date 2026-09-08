@@ -1,0 +1,433 @@
+## 15_CHRONY
+
+## Recommended is to use sdwdate. I always use sdwdate instead of chrony. But maintaining installation instructions for sdwdate on Arch Linux is a lot of work.
+## I can make it work for Arch, but it can be broken again in a few months. If you want maximum privacy, you should take care of time synchronization with sdwdate yourself or use Kicksecure.
+
+## Install the chrony daemon:
+sudo pacman -S chronyd
+
+## Time servers can log tracking metadata from timing requests. The servers from nothingtohide.nl claim to keep no logs.
+## I should never select Cloudflare as an NTS server. Time sequences can leak metadata.
+## Select a few NTS time servers you want to use. This list does not endorse any server. Vet them carefully before usage:
+
+## to leak less metadata you should look into tirdad: https://www.kicksecure.com/wiki/Tirdad & https://github.com/0xsirus/tirdad
+
+## List of NTS time servers:
+```ini
+# All
+server time.cloudflare.com nts iburst
+
+# Distro
+server 1.ntp.ubuntu.com nts iburst
+server 2.ntp.ubuntu.com nts iburst
+server 3.ntp.ubuntu.com nts iburst
+server 4.ntp.ubuntu.com nts iburst
+
+# Belgium
+server nts.teambelgium.net nts iburst
+
+# Brazil
+server a.st1.ntp.br nts iburst
+server b.st1.ntp.br nts iburst
+server c.st1.ntp.br nts iburst
+server d.st1.ntp.br nts iburst
+server gps.ntp.br nts iburst
+server brazil.time.system76.com nts iburst
+server time.bolha.one nts iburst
+
+# Canada
+server time1.mbix.ca nts iburst
+server time2.mbix.ca nts iburst
+server time3.mbix.ca nts iburst
+server time.web-clock.ca nts iburst
+
+# China
+server ntp.neu.edu.cn nts iburst
+server ntp1.neu.edu.cn nts iburst
+
+# Croatia
+server nts1.ntp.hr nts iburst
+server nts2.ntp.hr nts iburst
+
+# Czech Republic
+server time.cincura.net nts iburst
+
+# Finland
+server ntp.miuku.net nts iburst
+
+# France
+server paris.time.system76.com nts iburst
+
+# Germany
+server ntp3.fau.de nts iburst
+server ntp3.ipv6.fau.de nts iburst
+server ptbtime1.ptb.de nts iburst
+server ptbtime2.ptb.de nts iburst
+server ptbtime3.ptb.de nts iburst
+server ptbtime4.ptb.de nts iburst
+server www.jabber-germany.de nts iburst
+server www.masters-of-cloud.de nts iburst
+server ntp.nanosrvr.cloud nts iburst
+
+# Netherlands
+server 1.nts.nothingtohide.nl nts iburst
+server 2.nts.nothingtohide.nl nts iburst
+server 3.nts.nothingtohide.nl nts iburst
+server 4.nts.nothingtohide.nl nts iburst
+server ntppool1.time.nl nts iburst
+server ntppool2.time.nl nts iburst
+server nts.decepticon.space nts iburst
+
+# Russia
+server 0.ntp.bksp.in nts iburst
+
+# Singapore
+server ntpmon.dcs1.biz nts iburst
+
+# Sweden
+server nts.netnod.se nts iburst
+server gbg1.nts.netnod.se nts iburst
+server gbg2.nts.netnod.se nts iburst
+server lul1.nts.netnod.se nts iburst
+server lul2.nts.netnod.se nts iburst
+server mmo1.nts.netnod.se nts iburst
+server mmo2.nts.netnod.se nts iburst
+server sth1.nts.netnod.se nts iburst
+server sth2.nts.netnod.se nts iburst
+server svl1.nts.netnod.se nts iburst
+server svl2.nts.netnod.se nts iburst
+
+# Switzerland
+server mirror.mdapi.ch nts iburst
+server ntp.3eck.net nts iburst
+server ntp.trifence.ch nts iburst
+server ntp.zeitgitter.net nts iburst
+server ntp01.maillink.ch nts iburst
+server ntp02.maillink.ch nts iburst
+server ntp03.maillink.ch nts iburst
+server time.signorini.ch nts iburst
+
+# UK
+server ntp2.glypnod.com nts iburst
+server ntp1.dmz.terryburton.co.uk nts iburst
+server ntp2.dmz.terryburton.co.uk nts iburst
+server ntp0.cam.ac.uk nts iburst
+server ntp1.cam.ac.uk nts iburst
+server ntp2.cam.ac.uk nts iburst
+server ntp3.cam.ac.uk nts iburst
+
+# US
+server nts.amethyst.name nts iburst
+server ntp1.glypnod.com nts iburst
+server ohio.time.system76.com nts iburst
+server oregon.time.system76.com nts iburst
+server virginia.time.system76.com nts iburst
+server stratum1.time.cifelli.xyz nts iburst
+server time.cifelli.xyz nts iburst
+server time.txryan.com nts iburst
+server ntp1.wiktel.com nts iburst
+server ntp2.wiktel.com nts iburst
+```
+
+## Replace /etc/chrony.conf with the hardened configuration using NTS. Replace the servers with the ones you want to use:
+sudo vim /etc/chrony.conf
+```ini
+server 1.nts.nothingtohide.nl nts iburst
+server www.jabber-germany.de nts iburst
+server virginia.time.system76.com nts iburst
+sserver ntp.zeitgitter.net nts iburst
+server ntp0.cam.ac.uk nts iburst
+server ntp2.wiktel.com nts iburst
+
+minsources 3
+
+authselectmode prefer
+
+# EF
+dscp 46
+
+driftfile /var/lib/chrony/drift
+dumpdir /var/lib/chrony
+ntsdumpdir /var/lib/chrony
+
+leapseclist /usr/share/zoneinfo/leap-seconds.list
+makestep 1.0 3
+
+rtconutc
+rtcsync
+
+cmdport 0
+
+noclientlog
+```
+
+## Choose whether you want to use the hardened or the non-hardened chronyd. I used the Fedora chronyd services for this guide. The Arch Linux ones are less secure.
+## Check the Fedora sources for a newer version https://packages.fedoraproject.org/pkgs/chrony/chrony/
+## Create the hardened chronyd service. 
+sudo vim /usr/lib/systemd/system/chronyd-restricted.service
+```ini
+# This is a more restricted version of the chronyd service intended for
+# minimal NTP/NTS client configurations. The daemon is started without root
+# privileges and is allowed to write only to its own runtime, state, and log
+# directories. It cannot bind to privileged ports in order to operate as an
+# NTP server, or provide monitoring access over IPv4/IPv6. It cannot use
+# reference clocks, HW timestamping, RTC tracking, and other features.
+[Unit]
+Description=NTP client (restricted)
+Documentation=man:chronyd(8) man:chrony.conf(5)
+After=chronyd.service ntpdate.service sntp.service ntpd.service
+Conflicts=chronyd.service ntpd.service systemd-timesyncd.service
+ConditionCapability=CAP_SYS_TIME
+
+[Service]
+Type=notify
+PIDFile=/run/chrony/chronyd.pid
+Environment="OPTIONS"="-F 1"
+ExecStart=/usr/sbin/chronyd -n -U $OPTIONS
+
+User=chrony
+LogsDirectory=chrony
+LogsDirectoryMode=0750
+RuntimeDirectory=chrony
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=restart
+StateDirectory=chrony
+StateDirectoryMode=0750
+
+AmbientCapabilities=CAP_SYS_TIME
+CapabilityBoundingSet=CAP_SYS_TIME
+DevicePolicy=closed
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+# This breaks adjtimex()
+#PrivateUsers=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+RemoveIPC=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=~@cpu-emulation @debug @module @mount @obsolete @raw-io
+SystemCallFilter=~@reboot @resources @swap
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## With chrony.conf in place, start chronyd-restricted:
+sudo systemctl start chronyd-restricted.service
+
+## Check if it works without errors:
+sudo systemctl status chronyd-restricted.service
+
+## Enable it if you want to sync the time at boot:
+sudo systemctl enable chronyd-restricted.service
+
+## This is the Fedora service. Check the Fedore sources for a newer version https://packages.fedoraproject.org/pkgs/chrony/chrony/. If there is a new version you have to replace EnvironmentFile. In the version below, EnvironmentFile=-/etc/sysconfig/chronyd is already replaced with EnvironmentFile=-/etc/conf.d/chronyd. To avoid pacman overrides, it is placed in /etc/systemd/system/:
+sudo vim /etc/systemd/system/chronyd.service
+```ini
+[Unit]
+Description=NTP client/server
+Documentation=man:chronyd(8) man:chrony.conf(5)
+After=ntpdate.service sntp.service ntpd.service
+Conflicts=ntpd.service systemd-timesyncd.service
+ConditionCapability=CAP_SYS_TIME
+
+[Service]
+Type=notify
+PIDFile=/run/chrony/chronyd.pid
+Environment="OPTIONS="
+EnvironmentFile=-/etc/conf.d/chronyd
+ExecStart=!/usr/sbin/chronyd -n $OPTIONS
+
+User=chrony
+LogsDirectory=chrony
+LogsDirectoryMode=0750
+StateDirectory=chrony
+StateDirectoryMode=0750
+
+CapabilityBoundingSet=~CAP_AUDIT_CONTROL CAP_AUDIT_READ CAP_AUDIT_WRITE
+CapabilityBoundingSet=~CAP_BLOCK_SUSPEND CAP_KILL CAP_LEASE CAP_LINUX_IMMUTABLE
+CapabilityBoundingSet=~CAP_MAC_ADMIN CAP_MAC_OVERRIDE CAP_MKNOD CAP_SYS_ADMIN
+CapabilityBoundingSet=~CAP_SYS_BOOT CAP_SYS_CHROOT CAP_SYS_MODULE CAP_SYS_PACCT
+CapabilityBoundingSet=~CAP_SYS_PTRACE CAP_SYS_RAWIO CAP_SYS_TTY_CONFIG CAP_WAKE_ALARM
+DeviceAllow=char-pps rw
+DeviceAllow=char-ptp rw
+DeviceAllow=char-rtc rw
+DevicePolicy=closed
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ReadWritePaths=/run /var/lib/chrony -/var/log
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=~@cpu-emulation @debug @module @mount @obsolete @raw-io @reboot @swap
+
+# Adjust restrictions for /usr/sbin/sendmail (mailonchange directive)
+NoNewPrivileges=no
+ReadWritePaths=-/var/spool
+RestrictAddressFamilies=AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Create the EnvironmentFile for chronyd. You need seccomp enabled for the default profile. The restricted profile has this without the env file:
+sudo vim /etc/conf.d/chronyd
+```ini
+OPTIONS="-F1"
+```
+sudo chmod 644 /etc/conf.d/chronyd
+
+## Reboot.
+## Start chronyd:
+sudo systemctl start chronyd.service
+
+## Check if it works without errors. The service /etc/systemd/system/chronyd.service must be in use instead of /usr/lib/systemd/system/chronyd.service:
+sudo systemctl status chronyd.service
+
+## Enable it if you want to sync the time at boot:
+sudo systemctl enable chronyd.service
+
+## Add the AppArmor profile. Source: https://github.com/roddhjav/apparmor.d/blob/main/apparmor.d/profiles-a-f/chronyd
+sudo vim /etc/apparmor.d/usr.sbin.chronyd
+```ini
+# apparmor.d - Full set of apparmor profiles
+# Copyright (C) 2023-2024 Alexandre Pujol <alexandre@pujol.io>
+# SPDX-License-Identifier: GPL-2.0-only
+
+# Based on https://salsa.debian.org/debian/chrony/-/blob/debian/latest/debian/usr.sbin.chronyd
+
+abi <abi/5.0>,
+
+include <tunables/global>
+
+@{exec_path} = /usr/sbin/chronyd
+profile chronyd @{exec_path} flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice-strict>
+  include <abstractions/p11-kit>
+  include <abstractions/ssl_certs>
+
+  capability chown,
+  capability dac_override,
+  capability dac_read_search,
+  capability net_admin,
+  capability net_bind_service,
+  capability net_raw,
+  capability setgid,
+  capability setuid,
+  capability sys_nice,
+  capability sys_resource,
+  capability sys_time,
+
+  network inet dgram,
+  network inet6 dgram,
+  network inet stream,
+  network inet6 stream,
+  network netlink raw,
+
+  @{exec_path} mr,
+
+  /etc/adjtime r,
+  /etc/chrony.conf r,
+  /etc/chrony.keys r,
+  /etc/chrony.d/{,*} r,
+  /etc/chrony/{,**} r,
+
+  /var/lib/chrony/{,*} rw,
+  /var/log/chrony/{,*} rw,
+
+  # To sign replies to MS-SNTP clients by the smbd daemon
+  /var/lib/samba/ntp_signd/socket rw,
+
+  @{run}/chrony-dhcp/{,*} r,
+  @{run}/chrony.*.sock rw,
+  @{run}/chrony/{,*} rw,
+
+  # Allow reading the chronyd configuration file that timemaster(8) generates
+  @{run}/timemaster/chrony.conf r,
+
+  # Using the “tempcomp” directive gives chronyd the ability to improve
+  # the stability and accuracy of the clock by compensating the temperature
+  # changes measured by a sensor close to the oscillator.
+  @{sys}/class/hwmon/hwmon@{int}/temp@{int}_input r,
+  @{sys}/devices/virtual/thermal/thermal_zone@{int}/hwmon@{int}/temp@{int}_input r,
+
+  /dev/pps@{int} rw,
+  /dev/ptp@{int} rw,
+  /dev/rtc{,@{int}} rw,
+
+  include if exists <local/chronyd>
+}
+
+# vim:syntax=apparmor
+```
+
+## Create the AppArmor local file to give write access to systemd notify:
+sudo vim /etc/apparmor.d/local/chronyd
+```ini
+# sd_notify() — chronyd.service is Type=notify
+@{run}/systemd/notify w,
+```
+
+## Create the AppArmor drop-ins:
+sudo mkdir -p /etc/systemd/system/chronyd.service.d /usr/lib/systemd/system/chronyd-restricted.service.d
+sudo chmod 755 /etc/systemd/system/chronyd.service.d /usr/lib/systemd/system/chronyd-restricted.service.d
+sudo vim /etc/systemd/system/chronyd.service.d/30-apparmor.conf
+```ini
+[Service]
+## AppArmor
+AppArmorProfile=chronyd
+```
+sudo vim /usr/lib/systemd/system/chronyd-restricted.service.d/30-apparmor.conf
+```ini
+[Service]
+## AppArmor
+AppArmorProfile=chronyd
+```
+sudo chmod 644 /etc/systemd/system/chronyd.service.d/30-apparmor.conf /usr/lib/systemd/system/chronyd-restricted.service.d/30-apparmor.conf /etc/apparmor.d/local/chronyd
+
+## Enable the AppArmor profile:
+sudo touch /etc/apparmor.d/local/usr.sbin.chronyd
+sudo aa-enforce /etc/apparmor.d/usr.sbin.chronyd
+
+## Reboot and check if chronyd is running and AppArmor is active:
+sudo systemctl status chronyd-restricted
+sudo aa-status
+
+## After the time has synced, compare the clocks. Wait at least ~11 minutes after the sync, then:
+timedatectl              # compare "Universal time" vs "RTC time"
+sudo hwclock --show; date
+
+## This chrony configuration uses iburst for initial synchronization, which allows the time servers to see when you boot the machine. To avoid boot-time correlation, you can disable the chronyd service at boot and create a cronjob that starts chronyd at a random time instead.
+## If you do so, select the 1.5 second boot clock randomization in 26_VIRT_MANAGER.
+
+## References:
+- https://www.kicksecure.com/wiki/Tirdad
+- https://github.com/jauderho/nts-servers
+- https://github.com/roddhjav/apparmor.d/blob/main/apparmor.d/profiles-a-f/chronyd
+- https://www.kicksecure.com/wiki/Network_Time_Synchronization

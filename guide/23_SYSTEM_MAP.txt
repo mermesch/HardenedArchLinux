@@ -1,0 +1,87 @@
+## 23_SYSTEM_MAP
+
+## System.map is the kernel symbol table. Legitimately it serves debugging, but it is also a lookup table for exploits and rootkits: kernel symbols make crafting attacks against the running kernel considerably easier. On Debian it sits in /boot, without full disk encryption it can be read offline without a password.
+## We remove the file automatically after every boot and kernel update, with a small systemd service that runs before the regular boot targets.
+## Create the service:
+sudo vim /lib/systemd/system/remove-system-map.service
+```ini
+## Copyright (C) 2019 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+[Unit]
+Description=Removes the System.map files
+Documentation=https://github.com/Kicksecure/security-misc
+
+DefaultDependencies=no
+Before=sysinit.target
+Requires=local-fs.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/security-misc/remove-system.map
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
+```
+sudo chmod 644 /lib/systemd/system/remove-system-map.service
+
+## Create the script directory and the script itself:
+sudo mkdir -p /usr/libexec/security-misc
+sudo vim /usr/libexec/security-misc/remove-system.map
+```ini
+#!/bin/bash
+
+## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+if [ -f /usr/libexec/helper-scripts/pre.bsh ]; then
+   ## pre.bsh would `source` the following folders:
+   ## /etc/remove-system.map_pre.d/*.conf
+   ## /usr/local/etc/remove-system.map_pre.d/*.conf
+   source /usr/libexec/helper-scripts/pre.bsh
+fi
+
+shopt -s nullglob
+
+system_map_location="/boot/System.map* /usr/src/*/System.map* /lib/modules/*/*/System.map* /System.map*"
+
+counter=0
+for filename in ${system_map_location} ; do
+   counter=$(( counter + 1 ))
+done
+
+if [ "$counter" -ge "1" ]; then
+   echo "INFO: Deleting system.map files..."
+fi
+
+## Removes the System.map files as they are only used for debugging or malware.
+for filename in ${system_map_location} ; do
+   if [ -f "${filename}" ]; then
+      if [ -w "${filename}" ]; then
+         ## 'shred' with '--verbose' is too chatty. (7 lines)
+         shred --force --zero -u "${filename}"
+         echo "INFO: removed '${filename}'"
+      else
+         echo "NOTE: Cannot delete '${filename}' - read-only. For details, see: https://www.kicksecure.com/wiki/security-misc#system_map"
+         exit 0
+      fi
+   fi
+done
+
+if [ "$counter" -ge "1" ]; then
+   echo "INFO: Done. Success."
+fi
+```
+sudo chmod 700 /usr/libexec/security-misc/remove-system.map
+
+## Test the service:
+sudo systemctl start remove-system-map.service
+sudo systemctl status remove-system-map.service
+
+## Enable the service so it runs at every boot:
+sudo systemctl enable remove-system-map.service
+
+## References:
+- https://github.com/Kicksecure/security-misc/blob/master/usr/lib/systemd/system/remove-system-map.service%23security-misc-shared
+- https://github.com/Kicksecure/security-misc/blob/master/usr/libexec/security-misc/remove-system.map%23security-misc-shared

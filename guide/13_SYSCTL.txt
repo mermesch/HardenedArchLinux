@@ -1,0 +1,205 @@
+## 13_SYSCTL
+
+## NOTE: on the linux-hardened kernel, change kernel.unprivileged_bpf_disabled=1 to kernel.unprivileged_bpf_disabled=2. The stricter value 2 only exists on linux-hardened.
+## NOTE: vm.swappiness is set to 0. Lynis suggests at least 1 so that the OOM killer does not kill processes when physical memory runs out (FILE-6394: https://cisofy.com/lynis/controls/FILE-6394/). This machine has no swap, so 0 is correct. Set 1 if you have a swap partition.
+
+## Open the main configuration file:
+sudo vim /etc/sysctl.d/990-sysctl.conf
+
+## The 990 prefix is intentional: sysctl.d files are processed in name order, so this file is applied after the distribution files in /usr/lib/sysctl.d/ and our values win.
+## The kernel documentation covers most of these settings: https://docs.kernel.org/admin-guide/sysctl/index.html and https://docs.kernel.org/networking/ip-sysctl.html
+
+## Kernel space:
+## Disables the visibility of kernel pointers in /proc and other interfaces for every user, privileged or not:
+kernel.kptr_restrict=2
+
+## Disables access to the kernel log buffer for users without CAP_SYSLOG:
+kernel.dmesg_restrict=1
+
+## Disables the SysRq magic keys so that no kernel information leaks through them:
+kernel.sysrq=0
+
+## Disables eBPF for unprivileged users. Only holders of CAP_BPF keep access:
+kernel.unprivileged_bpf_disabled=1
+
+## Disables the userfaultfd() syscall for unprivileged processes:
+vm.unprivileged_userfaultfd=0
+
+## Disables automatic loading of TTY line disciplines. Loading now requires CAP_SYS_MODULE:
+dev.tty.ldisc_autoload=0
+
+## Disables io_uring for all processes:
+kernel.io_uring_disabled=2
+
+## Disables the legacy TIOCSTI operation, which can inject keystrokes into terminals:
+dev.tty.legacy_tiocsti=0
+
+## Disables the 32-bit vDSO mapping:
+abi.vsyscall32=0
+
+## Disables kernel profiling for users without CAP_PERFMON:
+kernel.perf_event_paranoid=3
+
+## Enables an immediate reboot when a kernel panic occurs:
+kernel.panic=-1
+
+## Enables a panic after the first oops or warning. Requires kernel.panic=-1 for the immediate reboot:
+kernel.oops_limit=1
+kernel.warn_limit=1
+
+## Enables a kernel panic when memory is exhausted instead of OOM killer activity. Requires kernel.panic=-1. Known to disturb heavy applications like the Tor Browser:
+vm.panic_on_oom=2
+
+## Enables a kernel panic on the NMI cases below. These also require kernel.panic=-1:
+kernel.panic_on_io_nmi=1
+kernel.panic_on_unrecovered_nmi=1
+kernel.unknown_nmi_panic=1
+
+## Disables user namespaces entirely. Breaks plenty of software: several AppArmor profiles, the UPower service, and more. Commented out for that reason:
+#user.max_user_namespaces=0
+
+## Enables unprivileged user namespaces. Set to 0 if you do not use Flatpak, Tor Browser, or virt-manager, they depend on them:
+kernel.unprivileged_userns_clone=1
+
+## Disables kexec, which can replace the running kernel. Handled by the separate file at the bottom:
+#kernel.kexec_load_disabled=1
+
+## User space:
+## Enables the maximum ASLR entropy for mmap. 32/16 bits are the x86_64 values. Find the maximum for your architecture with: grep -R --line-number -E "MMAP_RND|mmap_rnd" /boot /lib/modules/$(uname -r) 2>/dev/null
+vm.mmap_rnd_bits=32
+vm.mmap_rnd_compat_bits=16
+
+## Enables ASLR for the heap, stack, VDSO pages, and mmap base:
+kernel.randomize_va_space=2
+
+## Disables memory mappings below 64KB, the classic null pointer dereference zone:
+vm.mmap_min_addr=65536
+
+## Disables hardlink and symlink creation for users without read/write access to the target file:
+fs.protected_hardlinks=1
+fs.protected_symlinks=1
+
+## Disables writes to files in world-writable sticky directories (such as /tmp) unless the file belongs to the writer:
+fs.protected_fifos=2
+fs.protected_regular=2
+
+## Enables up to 1048576 memory map areas per process:
+vm.max_map_count=1048576
+
+## Core dumps:
+## Disables the storage of core dumps by routing them to /bin/false:
+kernel.core_pattern=|/bin/false
+
+## Disables core dumps for setuid and other protected or tainted binaries:
+fs.suid_dumpable=0
+
+## Enables the PID suffix in core dump file names as an extra safeguard:
+kernel.core_uses_pid=1
+
+## Networking:
+## Enables TCP SYN cookies as protection against SYN floods:
+net.ipv4.tcp_syncookies=1
+
+## Enables RFC 1337 behavior to close the TCP time-wait assassination hazard:
+net.ipv4.tcp_rfc1337=1
+
+## Disables TCP timestamps, which allow fingerprinting through system time:
+net.ipv4.tcp_timestamps=0
+
+## Disables the reuse of TIME_WAIT sockets for new outgoing connections:
+net.ipv4.tcp_tw_reuse=0
+
+## Disables the acceptance and sending of ICMP redirect messages, which an attacker on the path could use to reroute traffic:
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv6.conf.all.accept_redirects=0
+net.ipv6.conf.default.accept_redirects=0
+
+## Disables source routing so that no one else can steer the traffic path:
+net.ipv4.conf.all.accept_source_route=0
+net.ipv4.conf.default.accept_source_route=0
+net.ipv6.conf.all.accept_source_route=0
+net.ipv6.conf.default.accept_source_route=0
+
+## Disables the sending and receiving of RFC1620 shared media redirects:
+net.ipv4.conf.all.shared_media=0
+net.ipv4.conf.default.shared_media=0
+
+## Enables logging of packets with impossible source or destination addresses:
+net.ipv4.conf.all.log_martians=1
+net.ipv4.conf.default.log_martians=1
+
+## Enables reverse path filtering (source validation) on all interfaces. Blocks IP spoofing and issues like CVE-2019-14899:
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter=1
+
+## Disables gratuitous ARP packets:
+net.ipv4.conf.all.drop_gratuitous_arp=1
+net.ipv4.conf.default.drop_gratuitous_arp=1
+
+## Disables ARP replies for target addresses that are not on-link:
+net.ipv4.conf.all.arp_ignore=2
+net.ipv4.conf.default.arp_ignore=2
+
+## Enables ARP filtering:
+net.ipv4.conf.all.arp_filter=1
+net.ipv4.conf.default.arp_filter=1
+
+## Disables ICMP echo replies, so the host does not answer pings, and ignores bogus ICMP error responses:
+net.ipv4.icmp_echo_ignore_all=1
+net.ipv6.icmp.echo_ignore_all=1
+net.ipv4.icmp_ignore_bogus_error_responses=1
+
+## Disables the acceptance of IPv6 router advertisements and solicitations. This network is static:
+net.ipv6.conf.all.accept_ra=0
+net.ipv6.conf.default.accept_ra=0
+
+## Disables SACK, DSACK, and FACK. Selective acknowledgements are a common exploitation vector, but switching them off can cut throughput badly on lossy or high latency links. Most users notice no difference. Details: https://wiki.archlinux.org/title/Sysctl#TCP_Selective_Acknowledgement
+net.ipv4.tcp_sack=0
+net.ipv4.tcp_dsack=0
+net.ipv4.tcp_fack=0
+
+## Enables the strongest BPF JIT compiler hardening for all users:
+net.core.bpf_jit_harden=2
+
+## Would enable IPv6 privacy extensions with temporary addresses, but stays commented out. Together with MAC randomization it broke DHCP on VirtualBox and some root servers. If you activate it, pair it with the IPv6 privacy and MAC randomization settings from the network chapter:
+#net.ipv6.conf.*.use_tempaddr=2
+
+## Swap:
+## Disables swapping except when unavoidable. Use 1 instead of 0 when you do have swap, since 0 stops the periodic write-out entirely. This system has no swap, so 0 is correct:
+vm.swappiness=0
+
+## CD-ROM/DVD:
+## Disables the automatic closing and ejecting of the drive tray and all CD-ROM/DVD debug messages:
+dev.cdrom.autoclose=0
+dev.cdrom.autoeject=0
+dev.cdrom.debug=0
+
+## Optional: disables media checks and enables locking the drive:
+#dev.cdrom.check_media=0
+#dev.cdrom.lock=1
+
+## Disables kexec, which could be used to swap out the running kernel:
+sudo vim /etc/sysctl.d/30_kexec-disable.conf
+```ini
+kernel.kexec_load_disabled=1
+```
+
+## Disables the ptrace() system call for all processes:
+sudo vim /etc/sysctl.d/30_ptrace-disable.conf
+```ini
+kernel.yama.ptrace_scope=3
+```
+
+## Restricts console kernel output to errors only:
+sudo vim /etc/sysctl.d/30_silent-kernel-printk.conf
+```ini
+kernel.printk=3 3 3 3
+```
+
+## References:
+- https://madaidans-insecurities.github.io/guides/linux-hardening.html
+- https://github.com/Kicksecure/security-misc/tree/master/usr/lib/sysctl.d
+- https://github.com/secureblue/secureblue/blob/live/files/system/usr/lib/sysctl.d/55-hardening.conf

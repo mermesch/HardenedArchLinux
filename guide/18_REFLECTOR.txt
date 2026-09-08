@@ -1,0 +1,23 @@
+## 18_REFLECTOR
+
+## Reflector builds the pacman mirrorlist. Done right, it is a hardening step, not just a speedup.
+## Save a backup of the current mirrorlist so it can be restored if something goes wrong:
+cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+
+## Generate the new mirrorlist. Run it through torsocks so the mirror query does not leak your IP. I personally like to exclude pkgbuild.com. They sit at the top of the default ranking constantly, which effectively centralizes the update mechanism of a decentralized mirror network. Run this from the admin account:
+sudo torsocks reflector --latest 5 --protocol https --age 12 --sort rate --exclude '^(https:\/\/)?(.*\.)?pkgbuild\.com' --save /etc/pacman.d/mirrorlist
+
+## If reflector hangs, the --age 12 filter combined with --sort rate is the usual culprit: few mirrors are under 12 hours old, and ranking the remainder takes long. Drop --sort rate and --age 12 or raise the value:
+sudo torsocks reflector --latest 5 --protocol https --exclude '^(https:\/\/)?(.*\.)?pkgbuild\.com' --save /etc/pacman.d/mirrorlist
+
+## This improves security by only using HTTPS mirrors. By default reflector would use both HTTP and HTTPS.
+## Check the result. We do not want too many mirrors from the same domain. For true security and redundancy, you want mirrors operated by different organizations, in different jurisdictions, with completely different domain names:
+cat /etc/pacman.d/mirrorlist
+
+## If the list is too homogeneous, pick a few unique sources yourself and write them into /etc/pacman.d/mirrorlist. A candidate pool is in the .pacnew file from the pacman package:
+cat mirrorlist.pacnew
+cat /etc/pacman.d/mirrorlist.bak
+
+## An unofficial tor mirror
+##  Germany
+http://5gxsihf4vjdhimiotrhchihrfujoanondrplizofwparrtmgbwsafhid.onion/archlinux/ - Diyar Ciftci (Tor Only)

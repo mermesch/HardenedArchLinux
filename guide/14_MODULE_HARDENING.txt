@@ -1,0 +1,1017 @@
+## 14_MODULE_HARDENING
+
+## Disabling Intel ME can break firmware updates. You have to update them with fwupd before you disable Intel ME. You have to enable Intel ME if you want to update your firmware again. After updating you can disable it again
+
+## IPSEC MODULES ARE BLOCKED. If you want to use IPsec, you have to the IPsec lines.
+
+## Block modules. Open the file:
+sudo vim /etc/modprobe.d/30-disable.conf
+```ini
+## CPU Model-Specific Registers (MSRs):
+## Reading MSRs from user space lets unprivileged programs reach other trust domains.
+## Uncomment inside a VM. On a host it breaks CPU temperature control.
+##install intel_rapl_msr /bin/false
+##install isst_if_mbox_msr /bin/false
+##install msr /bin/false
+
+## Thunderbolt:
+## Disables the Thunderbolt stack to block certain DMA attacks:
+install intel-wmi-thunderbolt /bin/false
+install thunderbolt /bin/false
+install thunderbolt_net /bin/false
+
+## Bluetooth:
+## Disables Bluetooth to shrink the attack surface. The stack carries a long history of vulnerabilities:
+install bluetooth /bin/false
+install bluetooth_6lowpan /bin/false
+install bt3c_cs /bin/false
+install btbcm /bin/false
+install btintel /bin/false
+install btmrvl /bin/false
+install btmrvl_sdio /bin/false
+install btmtk /bin/false
+install btmtksdio /bin/false
+install btmtkuart /bin/false
+install btnxpuart /bin/false
+install btqca /bin/false
+install btrsi /bin/false
+install btrtl /bin/false
+install btsdio /bin/false
+install btusb /bin/false
+install virtio_bt /bin/false
+
+## FireWire (IEEE 1394):
+## Disables FireWire (IEEE 1394/i.LINK/Lynx) to block certain DMA attacks:
+install dv1394 /bin/false
+install firewire-core /bin/false
+install firewire_core /bin/false
+install firewire-ohci /bin/false
+install firewire_ohci /bin/false
+install firewire-net /bin/false
+install firewire_sbp2 /bin/false
+install firewire-sbp2 /bin/false
+install ohci1394 /bin/false
+install raw1394 /bin/false
+install sbp2 /bin/false
+install video1394 /bin/false
+install nosy /bin/false
+install firedtv /bin/false
+
+## GPS:
+## Disables GPS and GNSS (Global Navigation Satellite System) modules:
+install garmin_gps /bin/false
+install gnss /bin/false
+install gnss-mtk /bin/false
+install gnss-serial /bin/false
+install gnss-sirf /bin/false
+install gnss-ubx /bin/false
+install gnss-usb /bin/false
+
+## Intel Management Engine (ME):
+## Disables parts of the interface between the OS and the Intel ME.
+## ME functions are deeply entangled with basic Intel platform operation by now.
+## Switching parts off can break firmware updates, security features, power management, display, and DRM without clear error or debug messages.
+## Whonix no longer blocks the Intel ME modules so firmware updates keep working.
+## Read the discussion before you enable this: https://www.kicksecure.com/wiki/Out-of-band_Management_Technology
+install mei /bin/false
+install mei-gsc /bin/false
+install mei_gsc_proxy /bin/false
+install mei_hdcp /bin/false
+install mei-me /bin/false
+install mei_phy /bin/false
+install mei_pxp /bin/false
+install mei-txe /bin/false
+install mei-vsc /bin/false
+install mei-vsc-hw /bin/false
+install mei_wdt /bin/false
+install microread_mei /bin/false
+
+## Intel Platform Monitoring Technology (PMT):
+## Disables parts of the Intel PMT telemetry components:
+install pmt_class /bin/false
+install pmt_crashlog /bin/false
+install pmt_telemetry /bin/false
+
+## Framebuffer (fbdev):
+## Disables legacy framebuffer video drivers. They are known to be buggy, trigger kernel panics, and only legacy hardware uses them:
+install aty128fb /bin/false
+install atyfb /bin/false
+install cirrusfb /bin/false
+install cyber2000fb /bin/false
+install cyblafb /bin/false
+install gx1fb /bin/false
+install hgafb /bin/false
+install i810fb /bin/false
+install intelfb /bin/false
+install kyrofb /bin/false
+install lxfb /bin/false
+install matroxfb_base /bin/false
+install neofb /bin/false
+install nvidiafb /bin/false
+install pm2fb /bin/false
+install radeonfb /bin/false
+install rivafb /bin/false
+install s1d13xxxfb /bin/false
+install savagefb /bin/false
+install sisfb /bin/false
+install sstfb /bin/false
+install tdfxfb /bin/false
+install tridentfb /bin/false
+install vesafb /bin/false
+install vfb /bin/false
+install viafb /bin/false
+install vt8623fb /bin/false
+install udlfb /bin/false
+
+## File systems:
+## Disables uncommon file systems to shrink the attack surface:
+install adfs /bin/false
+install affs /bin/false
+install afs /bin/false
+install befs /bin/false
+install ceph /bin/false
+install coda /bin/false
+install cramfs /bin/false
+install ecryptfs /bin/false
+install freevxfs /bin/false
+install hfs /bin/false
+install hfsplus /bin/false
+install jffs2 /bin/false
+install jfs /bin/false
+install kafs /bin/false
+install minix /bin/false
+install nilfs2 /bin/false
+install ocfs2 /bin/false
+install ocfs2_dlm /bin/false
+install ocfs2_dlmfs /bin/false
+install ocfs2_nodemanager /bin/false
+install ocfs2_stackglue /bin/false
+install ocfs2_stack_o2cb /bin/false
+install ocfs2_stack_user /bin/false
+install orangefs /bin/false
+install reiserfs /bin/false
+install romfs /bin/false
+install sysv /bin/false
+install ubifs /bin/false
+install udf /bin/false
+install ufs /bin/false
+install zonefs /bin/false
+install squashfs /bin/false
+
+## Network file systems:
+## Disables uncommon network file systems to shrink the attack surface:
+install 9p /bin/false
+install 9pnet /bin/false
+install 9pnet_fd /bin/false
+install 9pnet_rdma /bin/false
+install 9pnet_usbg /bin/false
+install 9pnet_virtio /bin/false
+install 9pnet_xen /bin/false
+install gfs2 /bin/false
+install ksmbd /bin/false
+
+## CIFS (Common Internet File System):
+install cifs /bin/false
+install cifs_arc4 /bin/false
+install cifs_md4 /bin/false
+
+## NFS:
+install nfs /bin/false
+install nfs_acl /bin/false
+install nfs_layout_nfsv41_files /bin/false
+install nfs_layout_flexfiles /bin/false
+install nfsd /bin/false
+install nfsv2 /bin/false
+install nfsv3 /bin/false
+install nfsv4 /bin/false
+install nfs_localio /bin/false
+install grace /bin/false
+install lockd /bin/false
+
+## Network protocols:
+## Disables rare and unneeded protocols, a recurring source of unknown vulnerabilities:
+install af_802154 /bin/false
+install appletalk /bin/false
+install ax25 /bin/false
+install decnet /bin/false
+install dccp /bin/false
+install xt_dccp /bin/false
+install econet /bin/false
+install eepro100 /bin/false
+install eth1394 /bin/false
+install ipx /bin/false
+install n-hdlc /bin/false
+install hdlcdrv /bin/false
+install netrom /bin/false
+install p8022 /bin/false
+install p8023 /bin/false
+install psnap /bin/false
+install rose /bin/false
+install x25 /bin/false
+install mctp-serial /bin/false
+install mctp-usb /bin/false
+install mctp-i3c /bin/false
+install batman-adv /bin/false
+
+## ATM (Asynchronous Transfer Mode):
+install atm /bin/false
+install ueagle-atm /bin/false
+install usbatm /bin/false
+install xusbatm /bin/false
+install pppoatm /bin/false
+install atmtcp /bin/false
+
+## CAN (Controller Area Network):
+install c_can /bin/false
+install c_can_pci /bin/false
+install c_can_platform /bin/false
+install can /bin/false
+install can-bcm /bin/false
+install can-dev /bin/false
+install can-gw /bin/false
+install can-isotp /bin/false
+install can-raw /bin/false
+install ctucanfd /bin/false
+install ctucanfd_pci /bin/false
+install can-j1939 /bin/false
+install can327 /bin/false
+install ifi_canfd /bin/false
+install janz-ican3 /bin/false
+install m_can /bin/false
+install m_can_pci /bin/false
+install m_can_platform /bin/false
+install phy-can-transceiver /bin/false
+install slcan /bin/false
+install ucan /bin/false
+install vxcan /bin/false
+install vcan /bin/false
+
+## TIPC (Transparent Inter Process Communication):
+install tipc /bin/false
+install tipc_diag /bin/false
+
+## RDS (Reliable Datagram Sockets):
+install rds /bin/false
+install rds_rdma /bin/false
+install rds_tcp /bin/false
+
+## SCTP (Stream Control Transmission Protocol):
+install sctp /bin/false
+install sctp_diag /bin/false
+install xt_sctp /bin/false
+
+## Amateur radios:
+install hamradio /bin/false
+
+## RDMA (remote direct memory access):
+install smc /bin/false
+install smc_diag /bin/false
+install erdma /bin/false
+install ionic_rdma /bin/false
+install irdma /bin/false
+install nvme-rdma /bin/false
+install nvmet-rdma /bin/false
+install ocrdma /bin/false
+install rdma_cm /bin/false
+install rdma_rxe /bin/false
+install rdma_ucm /bin/false
+install rdmavt /bin/false
+install rpcrdma /bin/false
+install vmw_pvrdma /bin/false
+
+## GPIB (instrumentation bus):
+install gpib_common /bin/false
+install agilent_82350b /bin/false
+install agilent_82357a /bin/false
+install cb7210 /bin/false
+install cec_gpib /bin/false
+install ines_gpib /bin/false
+install lpvo_usb_gpib /bin/false
+install nec7210 /bin/false
+install ni_usb_gpib /bin/false
+install tms9914 /bin/false
+install tnt4882 /bin/false
+
+## Automotive and industrial hardware:
+## Disables car network adapters, backup camera chips, and single pair Ethernet PHYs:
+install dp83tg720 /bin/false
+install marvell-88q2xxx /bin/false
+install marvell-88x2222 /bin/false
+install microchip_t1s /bin/false
+install max9271 /bin/false
+install peak_usb /bin/false
+install peak_pciefd /bin/false
+install kvaser_usb /bin/false
+install gs_usb /bin/false
+install 6lowpan /bin/false
+install ieee802154_6lowpan /bin/false
+
+## DVB and TV receivers:
+## Disables the DVB and TV tuner stack:
+install dvb-as102 /bin/false
+install dvb-bt8xx /bin/false
+install dst_ca /bin/false
+install dst /bin/false
+install dvb-core /bin/false
+install dvb-pll /bin/false
+install dvb-ttusb-budget /bin/false
+install dvb-usb /bin/false
+install dvb-usb-a800 /bin/false
+install dvb-usb-af9005 /bin/false
+install dvb-usb-af9005-remote /bin/false
+install dvb-usb-af9015 /bin/false
+install dvb-usb-af9035 /bin/false
+install dvb-usb-anysee /bin/false
+install dvb-usb-au6610 /bin/false
+install dvb-usb-az6007 /bin/false
+install dvb-usb-az6027 /bin/false
+install dvb-usb-ce6230 /bin/false
+install dvb-usb-cinergyT2 /bin/false
+install dvb-usb-cxusb /bin/false
+install dvb-usb-dib0700 /bin/false
+install dvb-usb-dibusb-common /bin/false
+install dvb-usb-dibusb-mb /bin/false
+install dvb-usb-dibusb-mc /bin/false
+install dvb-usb-dibusb-mc-common /bin/false
+install dvb-usb-digitv /bin/false
+install dvb-usb-dtt200u /bin/false
+install dvb-usb-dtv5100 /bin/false
+install dvb-usb-dvbsky /bin/false
+install dvb-usb-dw2102 /bin/false
+install dvb-usb-ec168 /bin/false
+install dvb-usb-gl861 /bin/false
+install dvb-usb-gp8psk /bin/false
+install dvb-usb-lmedm04 /bin/false
+install dvb-usb-m920x /bin/false
+install dvb-usb-mxl111sf /bin/false
+install dvb-usb-nova-t-usb2 /bin/false
+install dvb-usb-opera /bin/false
+install dvb-usb-pctv452e /bin/false
+install dvb-usb-rtl28xxu /bin/false
+install dvb-usb-technisat-usb2 /bin/false
+install dvb-usb-ttusb2 /bin/false
+install dvb-usb-umt-010 /bin/false
+install dvb_usb_v2 /bin/false
+install dvb-usb-vp702x /bin/false
+install dvb-usb-vp7045 /bin/false
+install ttusb_dec /bin/false
+install ttusbdecfe /bin/false
+install smsusb /bin/false
+install smsdvb /bin/false
+install smsmdtv /bin/false
+install smssdio /bin/false
+install b2c2-flexcop /bin/false
+install b2c2-flexcop-pci /bin/false
+install b2c2-flexcop-usb /bin/false
+install au0828 /bin/false
+install mxb /bin/false
+install saa7164 /bin/false
+install saa6588 /bin/false
+install smipcie /bin/false
+install pluto2 /bin/false
+install ngene /bin/false
+install mantis /bin/false
+install mantis_core /bin/false
+install hopper /bin/false
+install ivtv /bin/false
+install ivtvfb /bin/false
+## DVB frontends:
+install a8293 /bin/false
+install af9013 /bin/false
+install af9033 /bin/false
+install as102_fe /bin/false
+install ascot2e /bin/false
+install atbm8830 /bin/false
+install au8522_common /bin/false
+install au8522_decoder /bin/false
+install au8522_dig /bin/false
+install bcm3510 /bin/false
+install cx22700 /bin/false
+install cx22702 /bin/false
+install cx24110 /bin/false
+install cx24113 /bin/false
+install cx24116 /bin/false
+install cx24117 /bin/false
+install cx24120 /bin/false
+install cx24123 /bin/false
+install cxd2099 /bin/false
+install cxd2820r /bin/false
+install cxd2841er /bin/false
+install cxd2880-spi /bin/false
+install dib0070 /bin/false
+install dib0090 /bin/false
+install dib3000mb /bin/false
+install dib3000mc /bin/false
+install dib7000m /bin/false
+install dib7000p /bin/false
+install dib8000 /bin/false
+install dibx000_common /bin/false
+install drx39xyj /bin/false
+install drxd /bin/false
+install drxk /bin/false
+install ds3000 /bin/false
+install ec100 /bin/false
+install gp8psk-fe /bin/false
+install helene /bin/false
+install horus3a /bin/false
+install isl6405 /bin/false
+install isl6421 /bin/false
+install isl6423 /bin/false
+install itd1000 /bin/false
+install ix2505v /bin/false
+install l64781 /bin/false
+install lg2160 /bin/false
+install lgdt3305 /bin/false
+install lgdt3306a /bin/false
+install lgdt330x /bin/false
+install lgs8gxx /bin/false
+install lnbh25 /bin/false
+install lnbp21 /bin/false
+install lnbp22 /bin/false
+install m88ds3103 /bin/false
+install m88rs2000 /bin/false
+install mb86a16 /bin/false
+install mb86a20s /bin/false
+install mn88472 /bin/false
+install mn88473 /bin/false
+install mt312 /bin/false
+install mt352 /bin/false
+install mxl5xx /bin/false
+install mxl692 /bin/false
+install nxt200x /bin/false
+install nxt6000 /bin/false
+install or51132 /bin/false
+install or51211 /bin/false
+install rtl2830 /bin/false
+install rtl2832 /bin/false
+install s5h1409 /bin/false
+install s5h1411 /bin/false
+install s5h1420 /bin/false
+install s921 /bin/false
+install si2165 /bin/false
+install si2168 /bin/false
+install si21xx /bin/false
+install sp2 /bin/false
+install sp887x /bin/false
+install stb0899 /bin/false
+install stb6000 /bin/false
+install stb6100 /bin/false
+install stv0288 /bin/false
+install stv0297 /bin/false
+install stv0299 /bin/false
+install stv0367 /bin/false
+install stv0900 /bin/false
+install stv090x /bin/false
+install stv0910 /bin/false
+install stv6110 /bin/false
+install stv6110x /bin/false
+install stv6111 /bin/false
+install tc90522 /bin/false
+install tda10021 /bin/false
+install tda10023 /bin/false
+install tda10048 /bin/false
+install tda1004x /bin/false
+install tda10071 /bin/false
+install tda10086 /bin/false
+install tda18271c2dd /bin/false
+install tda665x /bin/false
+install tda8083 /bin/false
+install tda8261 /bin/false
+install tda826x /bin/false
+install ts2020 /bin/false
+install tua6100 /bin/false
+install ves1820 /bin/false
+install ves1x93 /bin/false
+install zl10036 /bin/false
+install zl10039 /bin/false
+install zl10353 /bin/false
+## Tuners:
+install e4000 /bin/false
+install fc0011 /bin/false
+install fc0012 /bin/false
+install fc0013 /bin/false
+install fc2580 /bin/false
+install it913x /bin/false
+install m88rs6000t /bin/false
+install max2165 /bin/false
+install mc44s803 /bin/false
+install mt2060 /bin/false
+install mt2063 /bin/false
+install mt20xx /bin/false
+install mt2131 /bin/false
+install mt2266 /bin/false
+install mxl301rf /bin/false
+install mxl5005s /bin/false
+install mxl5007t /bin/false
+install qm1d1b0004 /bin/false
+install qm1d1c0042 /bin/false
+install qt1010 /bin/false
+install r820t /bin/false
+install si2157 /bin/false
+install tda18212 /bin/false
+install tda18218 /bin/false
+install tda18250 /bin/false
+install tda18271 /bin/false
+install tda827x /bin/false
+install tda8290 /bin/false
+install tda9887 /bin/false
+install tea5761 /bin/false
+install tea5767 /bin/false
+install tua9001 /bin/false
+install tuner /bin/false
+install tuner-simple /bin/false
+install tuner-types /bin/false
+install xc2028 /bin/false
+install xc4000 /bin/false
+install xc5000 /bin/false
+install zl10036 /bin/false
+install zl10039 /bin/false
+install zl10353 /bin/false
+## More DVB USB and PCI receivers:
+install mxl111sf-demod /bin/false
+install mxl111sf-tuner /bin/false
+install zd1301 /bin/false
+install zd1301_demod /bin/false
+install saa7134 /bin/false
+install saa7134-alsa /bin/false
+install saa7134-dvb /bin/false
+install saa7134-empress /bin/false
+install saa7134-go7007 /bin/false
+install cx231xx /bin/false
+install cx231xx-alsa /bin/false
+install cx231xx-dvb /bin/false
+install cx88-alsa /bin/false
+install cx88-blackbird /bin/false
+install cx88-dvb /bin/false
+install cx88-vp3054-i2c /bin/false
+install cx88xx /bin/false
+install cx8800 /bin/false
+install cx8802 /bin/false
+install em28xx /bin/false
+install em28xx-alsa /bin/false
+install em28xx-dvb /bin/false
+install em28xx-rc /bin/false
+install em28xx-v4l /bin/false
+install netup-unidvb /bin/false
+install bttv /bin/false
+install bt819 /bin/false
+install bt856 /bin/false
+install bt866 /bin/false
+install bt878 /bin/false
+install snd-bt87x /bin/false
+install hdpvr /bin/false
+install pvrusb2 /bin/false
+install saa7146 /bin/false
+install hexium_gemini /bin/false
+install hexium_orion /bin/false
+install go7007 /bin/false
+install go7007-loader /bin/false
+install go7007-usb /bin/false
+install earth-pt1 /bin/false
+install earth-pt3 /bin/false
+install ddbridge /bin/false
+install ddbridge-dummy-fe /bin/false
+install cx23885 /bin/false
+install altera-ci /bin/false
+install cx18 /bin/false
+install cx18-alsa /bin/false
+install budget /bin/false
+install budget-av /bin/false
+install budget-ci /bin/false
+install budget-core /bin/false
+
+## Remote controls:
+## Disables infrared remote receivers and their protocol decoders:
+install rc-adstech-dvb-t-pci /bin/false
+install rc-alink-dtu-m /bin/false
+install rc-anysee /bin/false
+install rc-apac-viewcomp /bin/false
+install rc-astrometa-t2hybrid /bin/false
+install rc-asus-pc39 /bin/false
+install rc-asus-ps3-100 /bin/false
+install rc-ati-tv-wonder-hd-600 /bin/false
+install rc-ati-x10 /bin/false
+install rc-avermedia /bin/false
+install rc-avermedia-a16d /bin/false
+install rc-avermedia-cardbus /bin/false
+install rc-avermedia-dvbt /bin/false
+install rc-avermedia-m135a /bin/false
+install rc-avermedia-m733a-rm-k6 /bin/false
+install rc-avermedia-rm-ks /bin/false
+install rc-avertv-303 /bin/false
+install rc-azurewave-ad-tu700 /bin/false
+install rc-beelink-gs1 /bin/false
+install rc-beelink-mxiii /bin/false
+install rc-behold /bin/false
+install rc-behold-columbus /bin/false
+install rc-budget-ci-old /bin/false
+install rc-cinergy /bin/false
+install rc-cinergy-1400 /bin/false
+install rc-ct-90405 /bin/false
+install rc-d680-dmb /bin/false
+install rc-delock-61959 /bin/false
+install rc-dib0700-nec /bin/false
+install rc-dib0700-rc5 /bin/false
+install rc-digitalnow-tinytwin /bin/false
+install rc-digittrade /bin/false
+install rc-dm1105-nec /bin/false
+install dm1105 /bin/false
+install rc-dntv-live-dvb-t /bin/false
+install rc-dntv-live-dvbt-pro /bin/false
+install rc-dreambox /bin/false
+install rc-dtt200u /bin/false
+install rc-dvbsky /bin/false
+install rc-dvico-mce /bin/false
+install rc-dvico-portable /bin/false
+install rc-em-terratec /bin/false
+install rc-encore-enltv /bin/false
+install rc-encore-enltv2 /bin/false
+install rc-encore-enltv-fm53 /bin/false
+install rc-evga-indtube /bin/false
+install rc-eztv /bin/false
+install rc-flydvb /bin/false
+install rc-flyvideo /bin/false
+install rc-fusionhdtv-mce /bin/false
+install rc-gadmei-rm008z /bin/false
+install rc-geekbox /bin/false
+install rc-genius-tvgo-a11mce /bin/false
+install rc-gotview7135 /bin/false
+install rc-hauppauge /bin/false
+install rc-hisi-poplar /bin/false
+install rc-hisi-tv-demo /bin/false
+install rc-imon-mce /bin/false
+install rc-imon-pad /bin/false
+install rc-imon-rsc /bin/false
+install rc-iodata-bctv7e /bin/false
+install rc-it913x-v1 /bin/false
+install rc-it913x-v2 /bin/false
+install rc-kaiomy /bin/false
+install rc-khadas /bin/false
+install rc-khamsin /bin/false
+install rc-kworld-315u /bin/false
+install rc-kworld-pc150u /bin/false
+install rc-kworld-plus-tv-analog /bin/false
+install rc-leadtek-y04g0051 /bin/false
+install rc-lme2510 /bin/false
+install rc-loopback /bin/false
+install rc-manli /bin/false
+install rc-mecool-kiii-pro /bin/false
+install rc-mecool-kii-pro /bin/false
+install rc-medion-x10 /bin/false
+install rc-medion-x10-digitainer /bin/false
+install rc-medion-x10-or2x /bin/false
+install rc-minix-neo /bin/false
+install rc-msi-digivox-ii /bin/false
+install rc-msi-digivox-iii /bin/false
+install rc-msi-tvanywhere /bin/false
+install rc-msi-tvanywhere-plus /bin/false
+install rc-mygica-utv3 /bin/false
+install rc-nebula /bin/false
+install rc-nec-terratec-cinergy-xs /bin/false
+install rc-norwood /bin/false
+install rc-npgtech /bin/false
+install rc-odroid /bin/false
+install rc-pctv-sedna /bin/false
+install rc-pine64 /bin/false
+install rc-pinnacle-color /bin/false
+install rc-pinnacle-grey /bin/false
+install rc-pinnacle-pctv-hd /bin/false
+install rc-pixelview /bin/false
+install rc-pixelview-002t /bin/false
+install rc-pixelview-mk12 /bin/false
+install rc-pixelview-new /bin/false
+install rc-powercolor-real-angel /bin/false
+install rc-proteus-2309 /bin/false
+install rc-purpletv /bin/false
+install rc-pv951 /bin/false
+install rc-rc6-mce /bin/false
+install rc-real-audio-220-32-keys /bin/false
+install rc-reddo /bin/false
+install rc-siemens-gigaset-rc20 /bin/false
+install rc-snapstream-firefly /bin/false
+install rc-streamzap /bin/false
+install rc-su3000 /bin/false
+install rc-tanix-tx3mini /bin/false
+install rc-tanix-tx5max /bin/false
+install rc-tbs-nec /bin/false
+install rc-technisat-ts35 /bin/false
+install rc-technisat-usb2 /bin/false
+install rc-terratec-cinergy-c-pci /bin/false
+install rc-terratec-cinergy-s2-hd /bin/false
+install rc-terratec-cinergy-xs /bin/false
+install rc-terratec-slim /bin/false
+install rc-terratec-slim-2 /bin/false
+install rc-tevii-nec /bin/false
+install rc-tivo /bin/false
+install rc-total-media-in-hand /bin/false
+install rc-total-media-in-hand-02 /bin/false
+install rc-trekstor /bin/false
+install rc-tt-1500 /bin/false
+install rc-twinhan1027 /bin/false
+install rc-twinhan-dtv-cab-ci /bin/false
+install rc-vega-s9x /bin/false
+install rc-videomate-m1f /bin/false
+install rc-videomate-s350 /bin/false
+install rc-videomate-tv-pvr /bin/false
+install rc-videostrong-kii-pro /bin/false
+install rc-wetek-hub /bin/false
+install rc-wetek-play2 /bin/false
+install rc-winfast /bin/false
+install rc-winfast-usbii-deluxe /bin/false
+install rc-x96max /bin/false
+install rc-xbox-360 /bin/false
+install rc-xbox-dvd /bin/false
+install rc-zx-irdec /bin/false
+## IR receiver and decoder drivers:
+install ati_remote /bin/false
+install ati_remote2 /bin/false
+install ene_ir /bin/false
+install fintek-cir /bin/false
+install igorplugusb /bin/false
+install iguanair /bin/false
+install imon /bin/false
+install imon_raw /bin/false
+install ir-imon-decoder /bin/false
+install ir-jvc-decoder /bin/false
+install ir-kbd-i2c /bin/false
+install ir-mce_kbd-decoder /bin/false
+install ir-nec-decoder /bin/false
+install ir-rc5-decoder /bin/false
+install ir-rc6-decoder /bin/false
+install ir-rcmm-decoder /bin/false
+install ir-sanyo-decoder /bin/false
+install ir-sharp-decoder /bin/false
+install ir-sony-decoder /bin/false
+install ir-usb /bin/false
+install ir_toy /bin/false
+install ir-xmp-decoder /bin/false
+install ite-cir /bin/false
+install mceusb /bin/false
+install nuvoton-cir /bin/false
+install serial_ir /bin/false
+install streamzap /bin/false
+install ttusbir /bin/false
+install winbond-cir /bin/false
+install xbox_remote /bin/false
+
+## Legacy digital cameras (pre-2010):
+## Disables old point-and-shoot camera drivers from the era before USB webcams:
+install gspca_benq /bin/false
+install gspca_conex /bin/false
+install gspca_cpia1 /bin/false
+install gspca_dtcs033 /bin/false
+install gspca_etoms /bin/false
+install gspca_finepix /bin/false
+install gspca_gl860 /bin/false
+install gspca_jeilinj /bin/false
+install gspca_jl2005bcd /bin/false
+install gspca_kinect /bin/false
+install gspca_konica /bin/false
+install gspca_m5602 /bin/false
+install gspca_main /bin/false
+install gspca_mars /bin/false
+install gspca_mr97310a /bin/false
+install gspca_nw80x /bin/false
+install gspca_ov519 /bin/false
+install gspca_ov534 /bin/false
+install gspca_ov534_9 /bin/false
+install gspca_pac207 /bin/false
+install gspca_pac7302 /bin/false
+install gspca_pac7311 /bin/false
+install gspca_se401 /bin/false
+install gspca_sn9c2028 /bin/false
+install gspca_sn9c20x /bin/false
+install gspca_sonixb /bin/false
+install gspca_sonixj /bin/false
+install gspca_spca1528 /bin/false
+install gspca_spca500 /bin/false
+install gspca_spca501 /bin/false
+install gspca_spca505 /bin/false
+install gspca_spca506 /bin/false
+install gspca_spca508 /bin/false
+install gspca_spca561 /bin/false
+install gspca_sq905 /bin/false
+install gspca_sq905c /bin/false
+install gspca_sq930x /bin/false
+install gspca_stk014 /bin/false
+install gspca_stk1135 /bin/false
+install gspca_stv0680 /bin/false
+install gspca_stv06xx /bin/false
+install gspca_sunplus /bin/false
+install gspca_t613 /bin/false
+install gspca_topro /bin/false
+install gspca_touptek /bin/false
+install gspca_tv8532 /bin/false
+install gspca_vc032x /bin/false
+install gspca_vicam /bin/false
+install gspca_xirlink_cit /bin/false
+install gspca_zc3xx /bin/false
+
+## Radio tuners:
+## Disables analog and USB radio receivers:
+install dsbr100 /bin/false
+install radio-keene /bin/false
+install radio-ma901 /bin/false
+install radio-maxiradio /bin/false
+install radio-mr800 /bin/false
+install radio-shark /bin/false
+install shark2 /bin/false
+install radio-si470x-common /bin/false
+install radio-si470x-i2c /bin/false
+install radio-si470x-usb /bin/false
+install radio-tea5764 /bin/false
+install saa7706h /bin/false
+
+## USB Video Device Class:
+## Disables the USB video streaming driver used by webcams and some digital camcorders:
+install uvcvideo /bin/false
+
+## Vivid:
+## Disables the vivid test module, the source of several past vulnerabilities. Only the Qubes Video Companion tests need it:
+install vivid /bin/false
+
+## RNDIS:
+## Disables RNDIS, believed to have unfixable buffer overflow problems. Some Android USB tethering devices rely on it:
+install rndis_host /bin/false
+install usb_f_rndis /bin/false
+
+## Replaced modules:
+## Disables legacy drivers that newer drivers fully replaced:
+install asus_acpi /bin/false
+install bcm43xx /bin/false
+install brcm80211 /bin/false
+install de4x5 /bin/false
+install prism54 /bin/false
+
+## Legacy interfaces:
+## Disabling lp can break printing
+## Disables the parallel port, game port, and floppy stack, including printer support over parallel port:
+install parport /bin/false
+install parport_cs /bin/false
+install parport_pc /bin/false
+install parport_serial /bin/false
+install pps_parport /bin/false
+install i2c-parport /bin/false
+install ppdev /bin/false
+install lp /bin/false
+install gameport /bin/false
+install floppy /bin/false
+
+## Joystick drivers:
+## Disables gameport, serial, and USB joystick drivers:
+install a3d /bin/false
+install adc-joystick /bin/false
+install adi /bin/false
+install analog /bin/false
+install cobra /bin/false
+install db9 /bin/false
+install gamecon /bin/false
+install gf2k /bin/false
+install grip /bin/false
+install grip_mp /bin/false
+install guillemot /bin/false
+install iforce /bin/false
+install iforce-serio /bin/false
+install iforce-usb /bin/false
+install interact /bin/false
+install joydev /bin/false
+install joydump /bin/false
+install magellan /bin/false
+install psxpad-spi /bin/false
+install pxrc /bin/false
+install hid-pxrc /bin/false
+install qwiic-joystick /bin/false
+install sidewinder /bin/false
+install spaceball /bin/false
+install spaceorb /bin/false
+install stinger /bin/false
+install tmdc /bin/false
+install trancedriver /bin/false
+install turbografx /bin/false
+install twidjoy /bin/false
+install walkera0701 /bin/false
+install warrior /bin/false
+install zhenhua /bin/false
+
+## Kernel debugging and development modules:
+## Disables test and fault injection modules with no purpose on a production system:
+install mce-inject /bin/false
+install hwpoison-inject /bin/false
+install aer_inject /bin/false
+install scsi_debug /bin/false
+install usb_debug /bin/false
+install ring_buffer_benchmark /bin/false
+install vkms /bin/false
+install vsock_diag /bin/false
+install xsk_diag /bin/false
+install visl /bin/false
+install vim2m /bin/false
+install dummy_hcd /bin/false
+install nandsim /bin/false
+install mtdram /bin/false
+
+## Speech synthesis modules for blind users (speakup):
+## Leave commented out unless you are certain these modules serve kernel development only:
+## install speakup /bin/false
+## install speakup_acntsa /bin/false
+## install speakup_apollo /bin/false
+## install speakup_audptr /bin/false
+## install speakup_bns /bin/false
+## install speakup_dectlk /bin/false
+## install speakup_ltlk /bin/false
+## install speakup_soft /bin/false
+## install speakup_spkout /bin/false
+## install speakup_txprt /bin/false
+
+## IPsec part 1, ESP:
+## Disables the Encapsulating Security Payload modules, part of IPsec:
+install esp4 /bin/false
+install esp4_offload /bin/false
+install esp6 /bin/false
+install esp6_offload /bin/false
+
+## IPsec part 2, xfrm:
+## Disables the xfrm modules, they appear in related exploits:
+install nft_xfrm /bin/false
+install xfrm4_tunnel /bin/false
+install xfrm6_tunnel /bin/false
+install xfrm_algo /bin/false
+install xfrm_interface /bin/false
+install xfrm_ipcomp /bin/false
+install xfrm_iptfs /bin/false
+install xfrm_user /bin/false
+
+## IPsec part 3, the rest:
+install ah4 /bin/false
+install ah6 /bin/false
+install ipcomp /bin/false
+install ipcomp6 /bin/false
+install af_key /bin/false
+
+## L2TP, it depends on IPsec:
+install l2tp_core /bin/false
+install l2tp_debugfs /bin/false
+install l2tp_eth /bin/false
+install l2tp_ip /bin/false
+install l2tp_ip6 /bin/false
+install l2tp_netlink /bin/false
+install l2tp_ppp /bin/false
+install xt_l2tp /bin/false
+
+## Disables Sun RPC:
+install sunrpc /bin/false
+
+## Disables the RxRPC network protocol
+install rxrpc /bin/false
+
+## Disables loading ath_pci:
+install ath_pci /bin/false
+
+## X86 Android tablet support:
+## Disables the x86 Android tablet quirks:
+install x86-android-tablets /bin/false
+
+## Disables the CD-ROM driver stack:
+install cdrom /bin/false
+install sr_mod /bin/false
+
+## Disables the WiFi stack. This machine is wired only:
+install mac80211 /bin/false
+install cfg80211 /bin/false
+install iwlwifi /bin/false
+install iwlmvm /bin/false
+```
+
+## Disable Netfilter's automatic connection tracking helper assignment. Open the file:
+sudo vim /etc/modprobe.d/30-conntrack.conf
+```ini
+## Conntrack:
+## Disables the automatic assignment of connection tracking helpers in Netfilter.
+## It drags extra functionality such as IRC protocol parsing into the kernel.
+## Switching it off shrinks the kernel attack surface.
+options nf_conntrack nf_conntrack_helper=0
+```
+
+## Blacklist modules. Open the file:
+sudo vim /etc/modprobe.d/30-blacklist.conf
+```ini
+## Blacklisting stops a module from loading on its own. A manual modprobe still works.
+## The install ... /bin/false lines above block a module completely.
+blacklist amd76x_edac
+blacklist evbug
+blacklist pcspkr
+blacklist snd_aw2
+blacklist snd_intel8x0m
+blacklist snd_pcsp
+blacklist usbkbd
+blacklist usbmouse
+```
+
+## Regenerate the initramfs if a blocked module might be loaded from it:
+sudo mkinitcpio -P
+
+## References:
+- https://github.com/Kicksecure/security-misc/tree/master/etc/modprobe.d
+- https://github.com/secureblue/secureblue/blob/live/files/system/usr/lib/modprobe.d/secureblue.conf
+- https://gitlab.tails.boum.org/tails/tails/-/tree/stable/config/chroot_local-includes/etc/modprobe.d
+- https://git.launchpad.net/ubuntu/+source/kmod/tree/debian/modprobe.d/blacklist.conf

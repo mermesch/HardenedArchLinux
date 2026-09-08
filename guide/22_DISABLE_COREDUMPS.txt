@@ -1,0 +1,34 @@
+## 22_DISABLE_COREDUMPS
+
+## Create the directory and open the coredump configuration drop-in:
+sudo mkdir /etc/systemd/coredump.conf.d/
+sudo vim /etc/systemd/coredump.conf.d/custom.conf
+```ini
+[Coredump]
+Storage=none
+ProcessSizeMax=0
+```
+
+## Create the directory and open the systemd manager drop-in that stops systemd from dumping core:
+sudo mkdir /etc/systemd/system.conf.d
+sudo vim /etc/systemd/system.conf.d/60-disable-coredump.conf
+```ini
+[Manager]
+DumpCore=no
+```
+
+## Disable core dumps through resource limits. The "-" in the second field sets both the hard and soft limit at the same time:
+sudo mkdir /etc/security/limits.d
+sudo vim /etc/security/limits.d/30_limit.conf
+```ini
+* - core 0
+```
+
+## Reboot and verify that the limit is set to 0:
+ulimit -c
+
+## References:
+- https://wiki.archlinux.org/title/Core_dump
+- https://github.com/Kicksecure/security-misc/blob/master/usr/lib/systemd/system/30-disable-coredumps.conf
+- https://github.com/Kicksecure/security-misc/blob/master/etc/security/limits.d/30_security-misc.conf
+- https://github.com/secureblue/config/blob/live/files/system/etc/systemd/coredump.conf.d/60-disable-coredumps.conf

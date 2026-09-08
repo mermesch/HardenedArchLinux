@@ -1,0 +1,84 @@
+## 29_POST_INSTALLATION_HARDENING
+
+## When the installation and hardening are done, work through these checks and maintenance steps.
+
+## OPEN PORTS
+## Every open port is a program listening for network input. Every listener is bug-prone code that must be patched, configured, and trusted for as long as it runs. The fewer ports are open, the smaller the attack surface an adversary can reach, and no forgotten service is exposed by accident.
+## Be sure there are no open ports besides your VPN:
+sudo ss -lntup
+
+## Show open UDP/TCP ports with netstat as a second opinion:
+sudo pacman -S net-tools
+sudo netstat -anltp
+
+## LOCK THE ROOT ACCOUNT
+## Lock the root account so password login as root is impossible. sudo keeps working:
+sudo passwd -l root
+
+## VERIFY THE SYSTEM
+## Check for failed kernel parameters. Unknown parameters mean a typo or an unsupported option in the kernel command line:
+sudo dmesg | grep -i "unknown kernel command line"
+
+## After fixing, run the grub-install command from the installation section, regenerate the configuration, and re-sign for Secureboot:
+grub-mkconfig -o /boot/grub/grub.cfg
+sudo sbctl sign -s /boot/efi/EFI/GRUB/grubx64.efi
+
+## CLEANUP
+## Remove applications you only used for the host installation and no longer need.
+## Remove thumbnailers if any are installed that you dont need. Check first:
+pacman -Qs thumb
+pacman -S --list | grep thumb
+
+## Remove what you find:
+sudo pacman -Rns packagename
+
+## GEOCLUE CHECK
+## Geoclue must not be running. Check for the daemon and the demo agent. Both must return nothing:
+busctl list | grep -i geoclue
+pgrep -af geoclue-demo-agent
+
+## Check whether geoclue is installed at all (KDE):
+ls /usr/share/dbus-1/system-services/org.freedesktop.GeoClue2.service
+
+## Test whether geoclue is disabled. It should be masked and not working. If it is installed and not masked, the daemon starts and the call returns (). If it is not installed, you get an error like "The name org.freedesktop.GeoClue2 was not provided by any .service files":
+gdbus call --system --dest org.freedesktop.GeoClue2 \
+  --object-path /org/freedesktop/GeoClue2 \
+  --method org.freedesktop.DBus.Peer.Ping
+
+## IF YOU WANT TO UPDATE YOUR FIRMWARE IN THE FUTURE
+## The Kicksecure and Whonix teams report that disabled Intel MEI modules cause issues with firmware updates. We disabled them in the module hardening file. To update the firmware, enable the mei modules again, update, then disable them again. Update only with Mullvad off.
+fwupdmgr refresh
+fwupdmgr update
+
+## UPDATING MULLVAD
+## The update requires the compiler. Compilers are restricted to root on this system. Change the permissions back on the compiler before the update. The pacman hook sets the right permissions back after installing Mullvad, so only root can use the compilers again.
+
+## LIBVIRT APPARMOR
+## At the time of writing there is no working AppArmor profile for the libvirt user session, only for the system session. A profile is an important defense against VM escapes. Monitor whether a user session profile is released and apply it when it exists.
+## If the missing AppArmor VM sandbox is a major concern for you, note that Secureblue offers strong user session libvirt sandboxing with SELinux.
+
+## KEYSTROKE ANONYMIZATION
+## You could be fingerprinted based on soft biometric traits when you use the keyboard. The Kloak package mitigates this threat. It is available from the Kicksecure repository.
+## Do not install Kloak from the AUR. It has been malicious in the past. You can also install this inside the VM you use
+
+## NOT APPLIED
+## /etc/securetty console hardening was not applied in this guide. Read:
+## https://www.kicksecure.com/wiki/Dev/Strong_Linux_User_Account_Isolation#Console_Login_Attacks
+
+## Look into firmware packages for hardware optimization or functionality. This is not to improve security.
+## https://wiki.archlinux.org/title/Linux_firmware
+
+## FINAL AUDIT
+## Install the audit tools and check what you can fix or improve:
+sudo pacman -S arch-audit lynis
+arch-audit -c
+sudo lynis audit system
+
+## If you are done with the installation and do not use your browser on the host anymore, you can add noexec to /dev/mapper/archvg-home in /etc/fstab as well.
+sudo vim /etc/fstab
+
+## References:
+- https://www.kicksecure.com/wiki/
+- https://serverfault.com/questions/311009/netstat-shows-a-listening-port-with-no-pid-but-lsof-does-not/847910#847910
+- https://www.kicksecure.com/wiki/Debian_Tips#Open_Ports
+ 

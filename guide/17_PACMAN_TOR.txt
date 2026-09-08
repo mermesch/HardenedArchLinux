@@ -1,0 +1,13 @@
+## 17_PACMAN_TOR
+
+## Targeted attacks can tamper with downloads between you and the mirror. Routing pacman through tor removes that vector.
+## Edit and uncomment the following lines in pacman.conf:
+sudo vim /etc/pacman.conf
+```ini
+XferCommand = /usr/bin/curl --socks5-hostname localhost:9050 --location --continue-at - --fail --output %o %u
+```
+
+## Tor must be started for pacman to reach any mirror, since tor is not started at boot.
+
+## References:
+- https://wiki.archlinux.org/title/Tor

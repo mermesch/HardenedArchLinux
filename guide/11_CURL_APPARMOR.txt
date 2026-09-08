@@ -1,0 +1,15 @@
+## 11_CURL APPARMOR
+
+## pacman 6.1 stages every download in temporary download-* directories under /var/cache/pacman/pkg and /var/lib/pacman/sync before renaming the finished files into place. With pacman over tor, the downloading is done by the curl binary, and curl runs under an AppArmor profile. The profile denies writes to those staging directories, so every download fails.
+## Symptom: pacman downloads fail instantly while curl denials pile up in the journal.
+## Allow curl to write exactly those directories with a local override. The rest of the profile stays in force:
+sudo vim /etc/apparmor.d/local/curl
+```ini
+owner /var/cache/pacman/pkg/download-*/ rw,
+owner /var/cache/pacman/pkg/download-*/** rw,
+owner /var/lib/pacman/sync/download-*/ rw,
+owner /var/lib/pacman/sync/download-*/** rw,
+```
+
+## Reboot so the profile loads with the local rules applied, then test an update:
+sudo pacman -Syu

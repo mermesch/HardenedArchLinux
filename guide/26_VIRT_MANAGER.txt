@@ -1,0 +1,330 @@
+## 26_VIRT_MANAGER
+
+## I tried to minimize the qemu installation with qemu-base and other packages. That is not a quickly done. I decided to select qemu-full.
+## 1. Install libvirt, virt-manager, and qemu-full:
+sudo pacman -S libvirt virt-manager qemu-full passt
+sudo gpasswd -a user libvirt
+sudo gpasswd -a user kvm
+
+## 2. Move VM.xml from the libvirt folder in this repo to your user folder and set the right permissions:
+sudo mv libvirt/VM.xml /home/user/Documents/VM.xml
+sudo mv libvirt/VM_UEFI.xml /home/user/Documents/VM_UEFI.xml
+sudo chown user:user /home/user/Documents/VM.xml
+sudo chown user:user /home/user/Documents/VM_UEFI.xml
+
+## You can remove the sound card in the virt-manager settings to reduce the attack surface. Remove this block from the XML:
+```ini
+    <sound model='ich9'>
+      <codec type='output'/>
+    </sound>
+```
+
+## 3. Reboot the computer and log in as user.
+## 4. Disable coredumps for the VM. Create the config:
+mkdir -p ~/.config/libvirt/
+vim ~/.config/libvirt/qemu.conf
+```ini
+max_core = 0
+max_processes = 0
+max_files = 0
+```
+
+## 5. Go to Virtual Machine Manager, then File, then Add Connection. Switch the hypervisor from QEMU/KVM to QEMU/KVM user session, tick Autoconnect, and Connect.
+## 6. Import the VM from the XML (this config has security measures added):
+## Import VM with legacy BIOS
+sudo virsh -c qemu:///session define /home/user/Documents/VM.xml
+## Import VM with UEFI (3_INSTALLATION instructions work on this VM)
+sudo virsh -c qemu:///session define /home/user/Documents/VM_UEFI.xml
+
+## 7. Create a Virtio disk for the VM in Virtual Machine Manager.
+
+## 8. To prevent libvirt from altering the firewall, stop and disable the default network. Make sure there are no active virtual machines still using this network:
+virsh net-destroy default
+virsh net-autostart --disable default
+
+## 9. Disable swap on the host to reduce VM traces on disk. The installation already created no swap, so this is done.
+## 10. Watch out for suspend, hibernation, and crash dumps.
+## Aside from active paging, VM data hits the disk during standard operations:
+## Suspending or pausing a VM: the hypervisor dumps the entire contents of the VM's RAM into a managed save file on the host disk, so it can be resumed later.
+## Crash dumps: if the guest OS kernel panics or the VM process crashes, the hypervisor may dump the entire RAM state to a core dump file for debugging.
+## If your threat model requires preventing this (for example processing highly classified data, or running a tor relay or node), you must disable paging in the VM too:
+## Inside the guest VM: disable swap by running swapoff -a and removing the swap entries from /etc/fstab.
+## 11. Select ISO in virt-manager and enable the boot menu. Boot the ISO and install your VM
+
+## Troubleshooting
+## "cannot set CPU affinity on process 1994: invalid argument"
+## Example error:
+```ini
+libvirt.libvirtError: cannot set CPU affinity on process 1994: invalid argument
+```
+
+## Or:
+```ini
+Domain startup error: could not match processor to process 6962: Invalid argument
+```
+
+## Edit the VM settings and remove this attribute from the XML:
+cpuset='1'
+
+## 12. Save and restart the VM.
+
+## 13. Check that the VM uses the TSC clocksource instead of kvm-clock. kvm-clock can enable time-based fingerprinting and linkability between the VM and the host or between your VMs. Run this command inside the guest VM:
+## If the output is tsc, the clocksource is correct. If the output is kvm-clock or something else, the VM is using the paravirtualized KVM clock, which can leak timing information that links the VM to the host or your VM to another VM.
+cat /sys/devices/system/clocksource/clocksource0/current_clocksource
+
+
+## In the hardened VM XML we disabled kvmclock and the host RTC clock sync for the VMs If you use chrony on the host and in the VM, use different time servers. If you run chronyd on multiple VMs, consider using different time servers for each of them too.
+
+## It is even better to randomize the VM time at boot by a few milliseconds or seconds into the past or the future before your time is synced. Only do this when you understand what you are doing. Otherwise you can create stronger fingerprints instead of preventing them!
+
+## A libvirt hook on the host is weak for this, because it cannot spoof subseconds. It is not easy to get this done from the host, so we must do it from the guest. Do not use this script on a Kicksecure VM! Kicksecure ships its own boot clock randomizer in the guest.
+
+## Do all of the following INSIDE the guest VM.
+
+## Create the systemd service:
+sudo vim /etc/systemd/system/randomize-clock.service
+```ini
+[Unit]
+Description=Randomize system clock at boot
+DefaultDependencies=no
+After=local-fs.target systemd-journald.service
+Before=systemd-timesyncd.service ntpsec.service openntpd.service sdwdate.service chronyd.service chronyd-restricted.service ntpd.service time-set.target time-sync.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/randomize-clock
+
+[Install]
+WantedBy=sysinit.target
+```
+
+## Note: this script is slightly more failure-proof on a UEFI VM than on a legacy BIOS VM. The UEFI firmware hands an RNG seed to the guest kernel, so /dev/urandom is seeded early in the boot. A legacy BIOS VM has less entropy during early boot and the random draw can be of lower quality.
+
+## create the scripts
+sudo vim /usr/local/sbin/randomize-clock
+```ini
+#!/bin/bash
+# One uniform random offset, nanosecond granularity, within ±100 ms.
+set -eu
+
+SPAN=200000000     # window width  = 200 ms, in ns
+HALF=100000000     # half-window   = 100 ms
+
+DRAW=$(shuf -i 0-$SPAN -n 1)   # uniform integer in [0, 200000000]
+OFF=$(( DRAW - HALF ))         # -> uniform in [-100000000, +100000000] ns
+
+NOW=$(date +%s%N)              # single atomic read
+NEW=$(( NOW + OFF ))
+
+date -s "@$(( NEW / 1000000000 )).$(printf '%09d' $(( NEW % 1000000000 )))"
+
+printf 'clock randomized: offset %+d ns (%d ms)\n' "$OFF" "$(( OFF / 1000000 ))"
+```
+
+## If you want a more aggressive offset of 1.5 seconds for another VM, use this variant:
+```ini
+#!/bin/bash
+# One uniform random offset, nanosecond granularity, within ±1.5 s.
+set -eu
+
+SPAN=3000000000     # window width  = 3 s, in ns
+HALF=1500000000     # window center = 1.5 s
+
+DRAW=$(shuf -i 0-$SPAN -n 1)   # uniform integer in [0, 3000000000]
+OFF=$(( DRAW - HALF ))         # -> uniform in [-1500000000, +1500000000] ns
+
+NOW=$(date +%s%N)              # single read: no rollover race
+NEW=$(( NOW + OFF ))
+
+date -s "@$(( NEW / 1000000000 )).$(printf '%09d' $(( NEW % 1000000000 )))"
+
+printf 'clock randomized: offset %+d ns (%d ms)\n' "$OFF" "$(( OFF / 1000000 ))"
+```
+
+## Set the right permissions:
+sudo chmod 700 /usr/local/sbin/randomize-clock
+
+## Test the service now:
+sudo systemctl start randomize-clock.service
+date +%s.%N                                    # see the skewed time
+sudo journalctl -b -u randomize-clock.service # shows the offset that was applied
+
+## If the test run worked and the offset was applied, enable the service so the clock is randomized at every boot:
+sudo systemctl enable randomize-clock.service
+
+## MAKE SURE THE TIME IS SYNCED AFTER THE RANDOMIZATION BEFORE YOU USE THE VM! Do not do anything time-sensitive while the VM clock is still offset.
+
+## Understand how the offset is corrected. NTP daemons distinguish slewing from stepping. Stepping means the clock jumps to the correct time in one go. Slewing means the clock frequency is adjusted slightly, so the offset decays gradually and the time never jumps. NTP daemons step only large offsets and slew small ones, roughly under a tenth of a second.
+
+## Since the offset is at most 100 ms, the NTP daemon in the guest SLEWS it back, not steps it. At the usual slew limit of 500 ppm, a 100 ms offset takes around 200 seconds to fully correct. The 1.5 s variant is larger and gets stepped back in one jump. Either way, you don't want to work with a 0.5 s offset time. After every boot, wait and confirm that the time is synced before you do anything time-sensitive in the VM.
+
+## Check time:
+timedatectl
+
+## The guest uses chronyd. Check the current synchronization state:
+chronyc tracking
+
+## The important lines in the output:
+## System time : the current offset to NTP time, for example "0.034 seconds slow of NTP time". This is where you can see the 10-50 ms offsets that timedatectl does not show. It must shrink towards zero.
+## Leap status : "Not synchronised" as long as chronyd has no usable source, "Normal" once the clock is synchronized.
+
+## Watch the offset decay until the leap status is Normal:
+watch -n 1 chronyc tracking
+
+## Or block a terminal until the clock is synchronized:
+chronyc waitsync
+
+## If waitsync seems to hang forever, chronyd cannot reach its time servers. Check the network of the VM (passt) and which sources chronyd sees:
+chronyc sources -v
+chronyc sourcestats
+
+## With a offset that is greater than than 1 second you can see if chronyd stepped the time
+sudo status chronyd-restricted.service
+
+## You want System time close to zero and Leap status: "Normal" before you use the VM.
+
+## timedatectl may still show a difference between local time and RTC time in the VM. The kernel copies the correct time to the RTC within about 11 minutes. This offset does no harm, you don't have to wait for it.
+
+
+
+## HARDENING NETWORK STACK
+
+## After the VM installation and confirmation that your network works, you have to harden the network stack of libvirt. passt is a userspace network stack used by QEMU in the user session mode. It translates network packets between the VM and the host by creating socket connections, providing connectivity without requiring root privileges or a network bridge. Since passt handles all network traffic for the VM and runs on the host, its attack surface should be restricted with AppArmor.
+
+## Create the AppArmor profile for passt:
+sudo vim /etc/apparmor.d/usr.bin.passt
+```ini
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# PASST - Plug A Simple Socket Transport
+#  for qemu/UNIX domain socket mode
+#
+# PASTA - Pack A Subtle Tap Abstraction
+#  for network namespace/tap device mode
+#
+# contrib/apparmor/usr.bin.passt - AppArmor profile for passt(1)
+#
+# Copyright (c) 2022 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
+
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile passt /usr/bin/passt{,.avx2} {
+  include <abstractions/passt>
+
+  # Alternatively: include <abstractions/user-tmp>
+  owner /tmp/**				w,	# tap_sock_unix_open(),
+                        # tap_sock_unix_init(), pcap(),
+                        # pidfile_open(),
+                        # pidfile_write(),
+                        # logfile_init()
+
+  owner @{HOME}/**			w,	# pcap(), pidfile_open(),
+                        # pidfile_write()
+
+  # Workaround: libvirt's profile comes with a passt subprofile which includes,
+  # in turn, <abstractions/passt>, and adds libvirt-specific rules on top, to
+  # allow passt (when started by libvirtd) to write socket and PID files in the
+  # location requested by libvirtd itself, and to execute passt itself.
+  #
+  # However, when libvirt runs as unprivileged user, the mechanism based on
+  # virt-aa-helper, designed to build per-VM profiles as guests are started,
+  # doesn't work. The helper needs to create and load profiles on the fly, which
+  # can't be done by unprivileged users, of course.
+  #
+  # As a result, libvirtd runs unconfined if guests are started by unprivileged
+  # users, starting passt unconfined as well, which means that passt runs under
+  # its own stand-alone profile (this one), which implies in turn that execve()
+  # of /usr/bin/passt is not allowed, and socket and PID files can't be written.
+  #
+  # Duplicate libvirt-specific rules here as long as this is not solved in
+  # libvirt's profile itself.
+  /usr/bin/passt r,
+  owner @{run}/user/[0-9]*/libvirt/qemu/run/passt/* rw,
+  owner @{run}/libvirt/qemu/passt/* rw,
+}
+
+
+## Create the AppArmor abstractions for passt:
+sudo vim /etc/apparmor.d/abstractions/passt
+```
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# PASST - Plug A Simple Socket Transport
+#  for qemu/UNIX domain socket mode
+#
+# PASTA - Pack A Subtle Tap Abstraction
+#  for network namespace/tap device mode
+#
+# contrib/apparmor/abstractions/passt - Abstraction for passt(1)
+#
+# Copyright (c) 2022 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
+
+  abi <abi/4.0>,
+
+  include <abstractions/base>
+
+  include <abstractions/nameservice>		# get_dns(), conf.c
+
+  capability net_bind_service,			# isolation.c, conf.c
+  capability setuid,
+  capability setgid,
+  capability sys_admin,
+  capability setpcap,
+  capability net_admin,
+  capability sys_ptrace,
+  userns,
+
+  /					r,	# isolate_prefork(), isolation.c
+  mount options=(rw, runbindable) -> /,
+  mount		""	-> "/",
+  mount		""	-> "/tmp/",
+  pivot_root	"/tmp/" -> "/tmp/",
+  umount	"/",
+
+  owner @{PROC}/@{pid}/uid_map		r,	# conf_ugid()
+
+  @{PROC}/sys/net/ipv4/ip_local_port_range r,	# fwd_probe_ephemeral()
+
+  network netlink raw,				# nl_sock_init_do(), netlink.c
+
+  network inet stream,				# tcp.c
+  network inet6 stream,
+
+  network inet dgram,				# udp.c
+  network inet6 dgram,
+
+  network unix stream,				# tap.c
+
+  network unix dgram,				# __openlog(), log.c
+
+  /usr/bin/passt.avx2			ix,	# arch_avx2_exec(), arch.c
+```
+
+## Permission
+sudo chmod 644 /etc/apparmor.d/usr.bin.passt
+sudo chmod 644 /etc/apparmor.d/abstractions/passt
+
+## Enforce the apparmor profile
+sudo aa-enforce /etc/apparmor.d/usr.bin.passt
+
+## You have to confirm if the passt apparmor profile is loaded.
+## Reboot
+## Login user and start VM
+## CTRL + ALT + F4 on host
+## Login admin
+## sudo aa-status
+## You should see passt listed with the profile /usr/bin/passt{,.avx2} in enforce mode.
+## Start GUI again CTRL + ALT + F1
+
+
+## References:
+- https://www.whonix.org/wiki/Dev/TimeSync#Development
+- https://www.kicksecure.com/wiki/KVM
+- https://man.archlinux.org/man/passt.1.en
+- https://passt.top/passt/about/
+
+

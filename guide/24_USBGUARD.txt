@@ -1,0 +1,34 @@
+## 24_USBGUARD
+
+## USBGuard allows only whitelisted USB devices and blocks everything else. A new USB device, or a tampered keyboard/mouse, stops working.
+## Install USBGuard and generate the initial policy from the devices currently connected:
+sudo pacman -S usbguard
+sudo usbguard generate-policy | sudo tee /etc/usbguard/rules.conf
+
+## Set a # before the devices you want to disable in the generated list. Only allow what you actually use:
+sudo vim /etc/usbguard/rules.conf
+
+## Set the right permissions. The rules file reveals your hardware inventory:
+sudo chmod 600 /etc/usbguard/rules.conf
+
+## Block all devices that are not in the rules.conf list:
+sudo vim /etc/usbguard/usbguard-daemon.conf
+```ini
+PresentDevicePolicy=apply-policy
+PresentControllerPolicy=apply-policy
+
+# We dont want to give the user any rights
+IPCAllowedUsers=root
+```
+
+## Start and enable the service:
+sudo systemctl start usbguard
+sudo systemctl enable usbguard
+
+## To test whether the whitelist works, plug in a device that is not on the whitelist and check if it works.
+
+## Read the Arch Wiki page before relying on it: https://wiki.archlinux.org/title/USBGuard
+
+## References:
+- https://wiki.archlinux.org/title/USBGuard
+- https://mako088.github.io/arch/hardening_arch.html#usbguard-daemon

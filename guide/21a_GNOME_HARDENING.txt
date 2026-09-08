@@ -1,0 +1,114 @@
+## 21a_GNOME_HARDENING
+
+## Disable JIT:
+sudo vim /etc/profile.d/gnome-disable-jit.sh
+```ini
+export GJS_DISABLE_JIT=1
+export JavaScriptCoreUseJIT=0
+```
+
+## The user must be able to read the file:
+sudo chmod 644 /etc/profile.d/gnome-disable-jit.sh
+
+## After a reboot, confirm that the variables are set in the environment:
+env | grep JIT
+
+## Disable automount:
+sudo pacman -S dconf-editor
+sudo mkdir /etc/dconf/db/local.d
+sudo mkdir /etc/dconf/db/local.d/locks
+sudo chmod 755 /etc/dconf/db/local.d
+sudo chmod 755 /etc/dconf/db/local.d/locks
+
+## Write the automount settings to the dconf profile:
+echo '[org/gnome/desktop/media-handling]
+automount=false
+automount-open=false' | sudo tee /etc/dconf/db/local.d/automount-disable
+
+## Lock the settings so users cannot change them back:
+echo 'org/gnome/desktop/media-handling/automount
+org/gnome/desktop/media-handling/automount-open' | sudo tee /etc/dconf/db/local.d/locks/automount-disable
+
+sudo chmod 644 /etc/dconf/db/local.d/automount-disable
+sudo chmod 644 /etc/dconf/db/local.d/locks/automount-disable
+
+## Update the dconf database:
+sudo dconf update
+
+## Note: "sudo dconf update" did not seem to work in my tests. As a fallback, set the values with dconf editor or gsettings and check later if they persist. Run these as each user, for both users:
+gsettings set org.gnome.desktop.media-handling automount false
+gsettings set org.gnome.desktop.media-handling automount-open false
+
+## Disable GNOME extensions, automount, and thumbnails system-wide with gschema overrides.
+## Disable GNOME extensions:
+sudo vim /usr/share/glib-2.0/schemas/30_org.gnome.shell.gschema.override
+```ini
+[org.gnome.shell]
+allow-extension-installation=false
+enabled-extensions = []
+```
+
+## Disable GNOME automount:
+sudo vim /usr/share/glib-2.0/schemas/30_org.gnome.desktop.media-handling.override
+```ini
+[org.gnome.desktop.media-handling]
+automount=false
+automount-open=false
+```
+
+## Disable GNOME thumbnails:
+sudo vim /usr/share/glib-2.0/schemas/30_org.gnome.nautilus.gschema.override
+```ini
+[org.gnome.nautilus.preferences]
+show-image-thumbnails="never"
+```
+
+## Set the right permissions:
+sudo chmod 644 /usr/share/glib-2.0/schemas/30_org.gnome.shell.gschema.override
+sudo chmod 644 /usr/share/glib-2.0/schemas/30_org.gnome.desktop.media-handling.override
+sudo chmod 644 /usr/share/glib-2.0/schemas/30_org.gnome.nautilus.gschema.override
+
+## Compile and load:
+sudo glib-compile-schemas /usr/share/glib-2.0/schemas/
+
+## Check if the settings are set accordingly:
+gsettings get org.gnome.shell allow-extension-installation
+gsettings get org.gnome.shell enabled-extensions
+gsettings get org.gnome.desktop.media-handling automount
+gsettings get org.gnome.desktop.media-handling automount-open
+gsettings get org.gnome.nautilus.preferences show-image-thumbnails
+
+## Disable xWayland. Source: https://privsec.dev/posts/linux/desktop-linux-hardening/#disabling-xwayland
+## Create the directory and set the right permissions:
+sudo mkdir -p /etc/systemd/user/org.gnome.Shell@user.service.d
+sudo chmod 755 /etc/systemd/user/org.gnome.Shell@user.service.d
+
+## Create the drop-in and set the right permissions:
+sudo vim /etc/systemd/user/org.gnome.Shell@user.service.d/disable-xwayland.conf
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/gnome-shell --mode=%i --no-x11
+```
+sudo chmod 644 /etc/systemd/user/org.gnome.Shell@user.service.d/disable-xwayland.conf
+
+## Reboot and check if disable-xwayland.conf is loaded and if /usr/bin/gnome-shell --mode=user --no-x11 is running:
+systemctl status --user 'org.gnome.Shell@user.service'
+
+## Mask gsd-sharing:
+sudo systemctl --global mask org.gnome.SettingsDaemon.Sharing.service
+
+## Disable the geoclue agent autostart:
+rm /etc/xdg/autostart/geoclue-demo-agent.desktop
+
+## Prevent pacman from extracting the file again on package updates. Add this line to the [options] section of pacman.conf:
+sudo vim /etc/pacman.conf
+```ini
+NoExtract = etc/xdg/autostart/geoclue-demo-agent.desktop
+```
+
+## References:
+- https://privsec.dev/posts/linux/desktop-linux-hardening/#disabling-xwayland
+- https://mako088.github.io/arch/hardening_arch.html
+- https://github.com/secureblue/secureblue
+- https://github.com/Kicksecure/security-misc

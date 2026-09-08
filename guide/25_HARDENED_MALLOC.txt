@@ -1,0 +1,93 @@
+## 25_HARDENED_MALLOC
+
+## hardened_malloc is the hardened memory allocator from GrapheneOS. Preloaded into every process, it replaces glibc's malloc with one built against heap exploitation: guard pages, extensive randomization, and quarantine of freed memory. Heap bugs become much harder to turn into code execution.
+## It is great hardening, but it breaks Electron apps, Mullvad in this case. I did not create something to exclude Mullvad from the system-wide allocation. You can install and enable the allocator. It might work with Mullvad. At the time of writing, it does not work.
+## Download the signing key of Daniel Micay (thestinger), the hardened_malloc author:
+torsocks wget https://github.com/thestinger.gpg
+## Inspect the key and compare the fingerprint against a second source before trusting it:
+gpg --keyid-format long --with-fingerprint thestinger.gpg
+
+```
+pub   rsa4096/F9E712E59AF5F22A 2012-12-06 [SC]
+      Key fingerprint = 65EE FE02 2108 E2B7 08CB  FCF7 F9E7 12E5 9AF5 F22A
+uid                   Daniel Micay <danielmicay@gmail.com>
+uid                   Daniel Micay <daniel.micay@copperhead.co>
+uid                   Daniel Micay <security@attestation.app>
+uid                   Daniel Micay <security@seamlessupdate.app>
+uid                   Daniel Micay <security@grapheneos.org>
+```
+
+## Import the key:
+gpg --import thestinger.gpg
+
+## Clone, verify the release tag, and build:
+cd ~/Downloads
+torsocks git clone https://github.com/GrapheneOS/hardened_malloc.git
+cd hardened_malloc
+git tag --verify 8
+make
+make VARIANT=light
+
+## Install the library into /usr/lib/. This location maximizes compatibility: the bare library name resolves through the default loader search path, and AppArmor abstractions commonly allow reads under /usr/lib/, while exotic paths cause preload failures:
+sudo mv out/libhardened_malloc.so /usr/lib/libhardened_malloc.so
+sudo mv out-variant/libhardened_malloc-light.so /usr/lib/libhardened_malloc-light.so
+sudo chown root:root -R /usr/lib/libhardened_malloc.so
+sudo chown root:root -R /usr/lib/libhardened_malloc-light.so
+sudo chmod 644 /usr/lib/libhardened_malloc.so
+sudo chmod 644 /usr/lib/libhardened_malloc-light.so
+
+## Check the permissions. The library must be owned by root and writable by root only. It is preloaded into every process, setuid binaries included, so a library writable by anyone is a root compromise waiting to happen:
+ls -l /usr/lib/libhardened_malloc.so
+
+## The output must show root root and a mode of 644 (rw-r--r--).
+## Enable the allocator system-wide:
+sudo vim /etc/ld.so.preload
+```ini
+/usr/lib/libhardened_malloc.so
+```
+
+# You can enable hardened_malloc system-wide for root and user applications (this will break Mullvad GUI, the mullvad-daemon, Kill switch/Lockdown and mullvad-cli remain to work) with:
+sudo chmod 644 /etc/ld.so.preload
+
+# You can enable hardened_malloc system-wide only for root applications (like mullvad-daemon) with
+sudo chmod 600 /etc/ld.so.preload
+
+# You can also use or try the light variant
+sudo vim /etc/ld.so.preload
+```ini
+/usr/lib/libhardened_malloc-light.so.so
+```
+sudo chmod 644 /etc/ld.so.preload
+
+
+## Run the test suite from the repository directory to confirm the allocator works on this hardware:
+cd ~/Downloads/hardened_malloc
+make test
+
+## disable hardened_malloc by deleting the line "/usr/lib/libhardened_malloc.so"
+sudo vim /etc/ld.so.preload
+
+
+## OPTIONAL:
+## Preload the allocator into all systemd services:
+#sudo vim /usr/lib/systemd/system.conf.d/40-hardened_malloc.conf
+#```ini
+#[Manager]
+#DefaultEnvironment="LD_PRELOAD=libhardened_malloc.so"
+#```
+
+## OPTIONAL:
+## Unlike ld.so.preload, this mechanism can be undone per unit: a drop-in containing Environment="LD_PRELOAD=" excludes a single service. That is the way to exclude Mullvad or other Electron applications if you #drop the ld.so.preload line.
+## Preload the allocator into your user session, so GUI applications inherit it too:
+#sudo vim /usr/lib/environment.d/40-hardened_malloc.conf
+#```ini
+#LD_PRELOAD=libhardened_malloc.so
+#```
+
+## You can also try the light version of the allocator. Read https://github.com/GrapheneOS
+
+## Reboot so every service and session picks up the allocator.
+
+## References:
+- https://github.com/secureblue/secureblue
+- https://github.com/GrapheneOS/hardened_malloc

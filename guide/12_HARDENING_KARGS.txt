@@ -1,0 +1,72 @@
+## 12_HARDENING_KARGS
+## Kernel hardening
+
+## Set loglevel to 0 in the default config:
+sudo vim /etc/default/grub
+```ini
+GRUB_CMDLINE_LINUX_DEFAULT="loglevel=0 quiet"
+```
+
+## extra_latent_entropy only works with the linux-hardened kernel.
+
+## Mant remote code execution network vulnerabilities have been found in IPv6. You don't need it in most cases.
+## Remove ipv6.disable=1 if you want to keep IPv6.
+
+## Force disable simultaneous multithreading:
+## nosmt=force turns SMT off unconditionally, even on CPUs that no known vulnerability affects. The price: half of your logical cores disappear.
+
+## The parameters below count as unstable. In practice they run fine on most hardware. Keep them enabled and drop individual ones when they cause trouble.
+## oops=panic: turns every kernel oops into an immediate panic. Attacks that depend on triggering oopses repeatedly stop working this way.
+## debugfs=off: shuts debugfs down so that sensitive kernel internals are not exposed.
+## bdev_allow_write_mounted=0: forbids writing directly to the block devices of mounted filesystems.
+## efi=disable_early_pci_dma: closes an early-boot DMA gap that the IOMMU cannot cover yet, by controlling the BUSMASTER bit.
+## gather_data_sampling=force: applies the Gather Data Sampling mitigation unconditionally, through microcode where available, or by switching off AVX on affected CPUs whose microcode never got the fix.
+## mem_encrypt=on: activates AMD Secure Memory Encryption (SME).
+## amd_iommu=force_isolation: on AMD machines, makes the IOMMU driver isolate every device, which defends against DMA attacks.
+
+## Create the config for kernel hardening:
+sudo vim /etc/default/grub.d/40_kernel_hardening.cfg
+```ini
+GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX mitigations=auto,nosmt nosmt=force spectre_v2=on spectre_bhi=on kpti=1 pti=on ssbd=force-on l1tf=full,force l1d_flush=on kvm-intel.vmentry_l1d_flush=always mds=full,nosmt tsx=off tsx_async_abort=full,nosmt kvm.nx_huge_pages=force lockdown=confidentiality mmio_stale_data=full,nosmt retbleed=auto,nosmt kvm.mitigate_smt_rsb=1 spec_rstack_overflow=safe-ret gather_data_sampling=force reg_file_data_sampling=on indirect_target_selection=force slab_nomerge hash_pointers=always slab_debug=FZ init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 randomize_kstack_offset=on vsyscall=none debugfs=off panic=-1 oops=panic panic_on_warn=1 kfence.sample_interval=100 vdso32=0 cfi=kcfi ia32_emulation=0 efi_pstore.pstore_disable=1 erst_disable proc_mem.force_override=never amd_iommu=force_isolation intel_iommu=on iommu=force iommu.passthrough=0 iommu.strict=1 mem_encrypt=on kvm_amd.sev=1 kvm_amd.sev_es=1 kvm_amd.sev_snp=1 efi=disable_early_pci_dma random.trust_cpu=off random.trust_bootloader=off vmscape=force extra_latent_entropy ipv6.disable=1 module.sig_enforce=1 systemd.ssh_auto=no"
+```
+
+## Create the config to enable apparmor and more:
+sudo vim /etc/default/grub.d/40_enable_apparmor.cfg
+```ini
+GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX lsm=landlock,lockdown,yama,integrity,apparmor,bpf"
+```
+
+## Create the config to disable the recovery shell:
+sudo vim /etc/default/grub.d/41_restrict_recovery.cfg
+```ini
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT rd.emergency=halt"
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT rd.shell=0"
+GRUB_DISABLE_RECOVERY="true"
+```
+
+## Set the right permissions:
+sudo chmod 755 /etc/default/grub.d
+sudo chmod 644 /etc/default/grub.d/40_kernel_hardening.cfg
+sudo chmod 644 /etc/default/grub.d/40_enable_apparmor.cfg
+sudo chmod 644 /etc/default/grub.d/41_restrict_recovery.cfg
+
+## Now run the grub-install command you used during the installation.
+## Sign your GRUB file again for Secureboot:
+sudo sbctl sign -s /boot/efi/EFI/GRUB/grubx64.efi
+
+## Sign it with your MOK keys too if you use shim:
+sudo sbsign --key /root/signing-tools/keys/MOK.key \
+       --cert /root/signing-tools/keys/MOK.crt \
+       --output /boot/efi/EFI/GRUB/grubx64.efi \
+       /boot/efi/EFI/GRUB/grubx64.efi
+
+## Reboot and check if your kargs are active:
+cat /proc/cmdline
+
+## References:
+- https://wiki.archlinux.org/title/AppArmor
+- https://github.com/Kicksecure/security-misc/blob/master/etc/default/grub.d/40_kernel_hardening.cfg%23security-misc-shared
+- https://github.com/Kicksecure/security-misc/blob/master/etc/default/grub.d/40_cpu_mitigations.cfg%23security-misc-shared
+- https://github.com/Kicksecure/security-misc/blob/master/etc/default/grub.d/40_signed_modules.cfg%23security-misc-shared
+- https://github.com/Kicksecure/security-misc/blob/master/etc/default/grub.d/41_recovery_restrict.cfg%23security-misc-shared
+- https://github.com/secureblue/secureblue/blob/live/files/system/usr/lib/bootc/kargs.d/10-secureblue.toml

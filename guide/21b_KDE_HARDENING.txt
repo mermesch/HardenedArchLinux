@@ -1,0 +1,107 @@
+## 21b_KDE_HARDENING
+
+## Disable GHNS (Get Hot New Stuff), KDE's online content download service:
+sudo vim /etc/xdg/kdeglobals
+```ini
+[KDE Action Restrictions][$i]
+ghns=false
+```
+
+## Disable the KDE splash screen:
+sudo vim /etc/xdg/ksplashrc
+```ini
+[KSplash][$i]
+Engine=none
+Theme=None
+```
+
+## Stop Xwayland from eavesdropping on input events in kwin:
+sudo vim /etc/xdg/kwinrc
+```ini
+[Xwayland]
+XwaylandEavesdrops=None
+```
+
+## Disable thumbnail previews in Dolphin:
+sudo vim /etc/xdg/dolphinrc
+```ini
+[PreviewSettings]
+Plugins=
+```
+
+## Purge the already generated thumbnails (run as each user):
+rm -rf ~/.cache/thumbnails
+
+## Start kwin_wayland without Xwayland support:
+sudo vim /etc/systemd/user/plasma-kwin_wayland.service.d/disable-xwayland.conf
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/kwin_wayland_wrapper
+```
+
+## Do not start ksmserver when Xwayland is disabled:
+sudo vim /lib/systemd/user/plasma-ksmserver.service.d/40-skip-without-xwayland.conf
+```ini
+[Service]
+# Do not start service if Xwayland is disabled
+ExecCondition=/usr/bin/bash -c 'systemctl --user show --property=ExecStart plasma-kwin_wayland.service | grep -q -e "--xwayland"'
+```
+
+## Do not start the X11 embed SNI proxy when Xwayland is disabled. It only exists for X11 system tray icons:
+sudo vim /lib/systemd/user/plasma-xembedsniproxy.service.d/40-skip-without-xwayland.conf
+```ini
+[Service]
+# Do not start service if Xwayland is disabled
+ExecCondition=/usr/bin/bash -c 'systemctl --user show --property=ExecStart plasma-kwin_wayland.service | grep -q -e "--xwayland"'
+```
+
+## We disabled Dolphin thumbnails, but not the file search indexer. If you want, you can disable file search too:
+sudo vim /etc/xdg/baloofilerc
+```ini
+[Basic Settings]
+Indexing-Enabled[$i]=false
+```
+
+## Disable session restore, so no previous session content leaks at boot:
+sudo vim /etc/xdg/ksmserverrc
+```ini
+[General][$i]
+loginMode=emptySession
+```
+
+## Set the right permissions:
+sudo chmod 644 /etc/xdg/kdeglobals
+sudo chmod 644 /etc/xdg/ksplashrc
+sudo chmod 644 /etc/xdg/kwinrc
+sudo chmod 644 /etc/xdg/dolphinrc
+sudo chmod 644 /etc/xdg/baloofilerc
+sudo chmod 644 /etc/xdg/ksmserverrc
+sudo chmod 755 /etc/systemd/user/plasma-kwin_wayland.service.d/
+sudo chmod 755 /lib/systemd/user/plasma-ksmserver.service.d/
+sudo chmod 755 /lib/systemd/user/plasma-xembedsniproxy.service.d/
+sudo chmod 644 /etc/systemd/user/plasma-kwin_wayland.service.d/disable-xwayland.conf
+sudo chmod 644 /lib/systemd/user/plasma-ksmserver.service.d/40-skip-without-xwayland.conf
+sudo chmod 644 /lib/systemd/user/plasma-xembedsniproxy.service.d/40-skip-without-xwayland.conf
+
+## Remove the krunner appstream plugin:
+sudo rm -f /usr/lib64/qt6/plugins/kf6/krunner/krunner_appstream.so
+
+## Make sure the krunner appstream plugin does not come back after an update. Add this line to the [options] section of pacman.conf:
+sudo vim /etc/pacman.conf
+```ini
+NoExtract = usr/lib64/qt6/plugins/kf6/krunner/krunner_appstream.so
+```
+
+## Disable the geoclue agent autostart:
+rm /etc/xdg/autostart/geoclue-demo-agent.desktop
+
+## Prevent pacman from extracting the file again on package updates. Add this line to the same [options] section:
+sudo vim /etc/pacman.conf
+```ini
+NoExtract = etc/xdg/autostart/geoclue-demo-agent.desktop
+```
+
+## References:
+- https://github.com/secureblue/secureblue
+- https://github.com/Kicksecure/security-misc

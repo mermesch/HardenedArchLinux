@@ -1,0 +1,364 @@
+## 27_PERMISSIONS
+
+## search for umask and set 0077 there
+sudo vim /etc/login.defs
+
+## set umask to 0077
+sudo vim /etc/profile
+```
+umask 0077
+```
+
+## admin folder permissions
+sudo chmod 700 /home/admin
+
+## user folder permissions
+sudo chmod 700 /home/user
+
+
+## SETUID AND PERMISSION HARDENING
+## THE PROBLEM
+## Normal Unix permissions say "this file is only writable by root". Setuid says something much stronger: "run this file with the privileges of its OWNER, no matter who executes it". A setuid-root binary is a promise to every user on the machine: if you can trigger a bug in me, you get root.
+## The problem is not that any single setuid binary is malicious. It is the count. Arch ships dozens of them, every one is attack surface: a memory bug in a long-forgotten helper, a parser mistake in an old utility, a configuration file the binary trusts too much. Each setuid bit multiplies the value of any bug underneath it. Setgid is the same mechanism for group privileges.
+## Permissions work alongside this. Readable config files leak information (sshd_config reveals your setup, /etc/issue reveals your distro), world-readable private keys are game over, and directories like /boot tell an unprivileged user exactly which kernels you run. Root-only execution is even a defense on its own: a binary that no user can execute cannot be probed for bugs by that user at all.
+## Our approach is threefold: fix a known-good permission baseline, remove every setuid bit we do not explicitly trust, and replace privilege where actually needed with file capabilities, which are finer-grained: cap_net_raw instead of full root.
+## There is one more trap: permissions drift back. A pacman upgrade can restore upstream permissions, reinstall a setuid bit, or re-add capabilities. Static hardening loses to package updates. So this section ends with a pacman hook that re-applies the entire policy after every transaction.
+
+## STEP 0: VIEW AND SAVE YOUR CURRENT SETUID LIST
+## Before changing anything, inventory the current state. You need this file to undo mistakes and to review what the whitelist should contain:
+## Search for SETUID binaries. 
+sudo find / -perm -4000 -type f -executable
+
+## Search for SGID binaries. 
+sudo find / -perm -2000 -type f -executable
+
+## search and add them to a file
+find / -xdev -type f \( -perm -4000 -o -perm -2000 \) -exec ls -l {} + 2>/dev/null | sudo tee ~/setuid-before.txt
+
+## View the list:
+cat ~/setuid-before.txt
+
+## Read every line. Each entry is a decision: keep the bit (whitelist), or let the hook strip it. If you do not know what a binary does, that is a vote for removing the bit, since you can always put it back with the saved list.
+## Also save the capabilities, they are the other half of the inventory:
+getcap -r / 2>/dev/null | sudo tee ~/caps-before.txt
+
+## STEP 1: INSTALL THE HOOK
+## Create the hook directory if needed, then the hook file:
+sudo mkdir -p /etc/pacman.d/hooks
+sudo vim /etc/pacman.d/hooks/99-fix-permissions.hook
+```ini
+# Apply permissions, setuid policy and capabilities
+# after every package transaction.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = *
+
+[Action]
+Description = Restoring hardened permissions, setuid policy and capabilities
+When = PostTransaction
+Exec = /usr/local/sbin/fix-permissions
+```
+
+## STEP 2: INSTALL THE SCRIPT
+## Create the directory and open the script:
+sudo mkdir -p /usr/local/sbin
+sudo vim /usr/local/sbin/fix-permissions
+```ini
+#!/bin/bash
+# fix-permissions — reapplies permission hardening after pacman transactions.
+# Hook: /etc/pacman.d/hooks/99-fix-permissions.hook
+#
+# Steps (this order matters — chown/chmod drop file capabilities, so caps come last):
+#   1. Apply an exact owner:group + mode list
+#   2. Strip setuid/setgid under /usr and /opt, except a whitelist
+#   3. Remove or grant file capabilities
+
+PATH=/usr/bin:/bin
+
+rc=0
+log()       { printf 'fix-permissions: %s\n' "$*"; }
+log_error() { printf 'fix-permissions: %s\n' "$*" >&2; rc=1; }
+
+CHOWN=/usr/bin/chown
+CHMOD=/usr/bin/chmod
+FIND=/usr/bin/find
+SETCAP=/usr/bin/setcap
+GETCAP=/usr/bin/getcap
+STAT=/usr/bin/stat
+
+for tool in "$CHOWN" "$CHMOD" "$FIND" "$SETCAP" "$GETCAP" "$STAT"; do
+    if [[ ! -x $tool ]]; then
+        printf 'fix-permissions: missing %s\n' "$tool" >&2
+        exit 1
+    fi
+done
+
+# ---------------------------------------------------------------------------
+# Step 1: exact owner:group + mode list
+# Format: owner:group mode path   (# comments and missing paths are skipped)
+# ---------------------------------------------------------------------------
+
+apply() {
+    local owner=$1 mode=$2 path=$3 old new
+    [[ -e $path || -L $path ]] || return 0
+
+    old=$("$STAT" -c '%U:%G %a' -- "$path" 2>/dev/null)
+    "$CHOWN" -- "$owner" "$path" || log_error "chown $owner $path failed"
+    "$CHMOD" -- "$mode"  "$path" || log_error "chmod $mode $path failed"
+    new=$("$STAT" -c '%U:%G %a' -- "$path" 2>/dev/null)
+
+    if [[ "$old" != "$new" ]]; then
+        log "$path: ${old:-?} -> $new"
+    fi
+}
+
+while read -r owner mode path; do
+    case $owner in ''|'#'*) continue ;; esac
+    apply "$owner" "$mode" "$path"
+done <<'EOF'
+# directories
+root:root 0755 /home
+root:root 0700 /root
+root:root 0700 /boot
+root:root 0700 /usr/lib/modules
+root:root 0700 /usr/src
+root:root 0700 /etc/cron.d
+root:root 0700 /etc/cron.daily
+root:root 0700 /etc/cron.hourly
+root:root 0700 /etc/cron.weekly
+root:root 0700 /etc/cron.monthly
+root:root 0700 /etc/sudoers.d
+# configuration files
+root:root 0400 /etc/cups/cupsd.conf
+root:root 0600 /etc/ssh/sshd_config
+root:root 0600 /etc/crontab
+root:root 0644 /etc/group
+root:root 0644 /etc/group-
+root:root 0644 /etc/hosts.allow
+root:root 0644 /etc/hosts.deny
+root:root 0644 /etc/issue
+root:root 0644 /etc/issue.net
+root:root 0644 /etc/motd
+root:root 0644 /etc/passwd
+root:root 0644 /etc/passwd-
+# binaries: numeric modes deliberately clear setuid/setgid
+root:root   0755 /usr/bin/mount
+root:root   0755 /usr/bin/umount
+root:root   0755 /usr/bin/passwd
+root:root   0755 /usr/bin/ping
+root:root   0744 /usr/bin/su
+root:root   0744 /usr/bin/newgrp
+root:root   0744 /usr/bin/gpasswd
+root:root   0744 /usr/bin/chsh
+root:root   0744 /usr/bin/chfn
+root:root   0744 /usr/bin/chage
+root:root   0744 /usr/bin/expiry
+root:root   0744 /usr/bin/ssh-agent
+root:root   0744 /usr/lib/ssh/ssh-keysign
+# compilers: 0700 blocks other users; loosen temporarily when building
+root:root   0700 /usr/bin/gcc
+root:root   0700 /usr/bin/clang
+root:root   0700 /usr/bin/go
+root:root   0700 /usr/bin/rustc
+root:root   0700 /usr/bin/tcc
+EOF
+
+# ---------------------------------------------------------------------------
+# Step 2: strip setuid/setgid everywhere under /usr and /opt, except whitelist
+# Review what exists before trusting the whitelist:  find /usr /opt -type f -perm /6000
+# ---------------------------------------------------------------------------
+
+keep_suid() {
+    case "$1" in
+        # required — pacman itself runs through sudo
+        /usr/bin/sudo) return 0 ;;
+        # NVIDIA driver device-node setup
+        /usr/bin/nvidia-modprobe) return 0 ;;
+        # dbus activation
+        /usr/lib/dbus-1.0/dbus-daemon-launch-helper|/usr/lib/dbus-daemon-launch-helper) return 0 ;;
+        # Mullvad GUI sandbox (backup when unprivileged userns are enabled)
+        "/opt/Mullvad VPN/chrome-sandbox") return 0 ;;
+        # --- optional entries, uncomment if needed ---
+        # Electron sandbox (Mullvad from official Arch repo may use this):
+        # /usr/lib/electron39/chrome-sandbox
+        # Mullvad split-tunneling from the GUI:
+        # /usr/bin/mullvad-exclude
+        # Flatpak, if unprivileged userns are disabled:
+        # /usr/bin/bwrap
+        # Chrome, if unprivileged userns are disabled:
+        # /usr/lib/chromium/chrome-sandbox
+        # polkit GUI auth (not needed since polkit 127):
+        # /usr/lib/polkit-1/polkit-agent-helper-1  /usr/bin/pkexec
+        # KDE lock screen:
+        # /usr/lib/kcheckpass
+        # KDE login-session logging (works without it, re-enables at boot):
+        # /usr/lib/utempter
+        # rootless containers (podman/toolbox):
+        # /usr/bin/newuidmap  /usr/bin/newgidmap
+        # unverified path:
+        # /usr/bin/ssh-agent
+    esac
+    return 1
+}
+
+sweep_dirs=(/usr)
+[[ -d /opt ]] && sweep_dirs+=(/opt)
+
+while IFS= read -r -d '' file; do
+    keep_suid "$file" && continue
+    if "$CHMOD" ug-s -- "$file"; then
+        log "stripped setuid/setgid: $file"
+    else
+        log_error "failed to strip setuid/setgid: $file"
+    fi
+done < <("$FIND" "${sweep_dirs[@]}" -type f -perm /6000 -print0)
+
+# ---------------------------------------------------------------------------
+# Step 3: file capabilities (chmod/chown cannot touch these)
+# ---------------------------------------------------------------------------
+
+# Remove caps entirely from these paths.
+# Note: without caps, only root can ping. Comment out to allow unprivileged ping.
+cap_remove=(/usr/bin/ping)
+
+for path in "${cap_remove[@]}"; do
+    [[ -e $path ]] || continue
+    [[ -n $("$GETCAP" "$path" 2>/dev/null) ]] || continue
+    "$SETCAP" -r "$path" 2>/dev/null || true
+    if [[ -z $("$GETCAP" "$path" 2>/dev/null) ]]; then
+        log "removed capabilities: $path"
+    else
+        log_error "capabilities remain on $path"
+    fi
+done
+
+# Grant caps on these paths (replaces setuid where upstream supports it).
+grant_caps() {
+    local caps=$1 path=$2
+    [[ -f $path ]] || return 0
+    if "$SETCAP" "$caps" "$path"; then
+        log "granted caps: $caps $path"
+    else
+        log_error "setcap $caps $path failed"
+    fi
+}
+
+# unprivileged FUSE mounts (sshfs etc.)
+grant_caps cap_sys_admin=ep /usr/bin/fusermount3
+# non-root PAM shadow checks (e.g. GNOME screensaver unlock)
+grant_caps cap_dac_read_search,cap_audit_write=ep /usr/bin/unix_chkpwd
+# spice USB redirection helper
+grant_caps cap_fowner=ep /usr/lib/spice-client-glib-usb-acl-helper
+
+# QEMU-related helpers: upstream expects capabilities on these, but plain
+# libvirt/QEMU/KVM usage (user or system session, no GlusterFS storage)
+# does not touch them. Kept here as a ready reference.
+# Uncomment the matching line if your setup actually needs it.
+
+# FUSE mounts of GlusterFS-backed storage pools need CAP_SYS_ADMIN:
+# grant_caps cap_sys_admin=ep /usr/bin/fusermount-glusterfs
+
+# QEMU's bridged networking helper keeps only CAP_NET_ADMIN after it drops
+# privileges itself. Only needed when VMs attach to a host bridge device:
+# https://gitlab.com/qemu-project/qemu/-/blob/667e1fff878326c35c7f5146072e60a63a9a41c8/qemu-bridge-helper.c#L252
+# grant_caps cap_net_admin=ep /usr/libexec/qemu-bridge-helper
+
+exit $rc
+```
+
+## Make the script root-only and executable. The hook runs it as root, nobody else needs to touch it:
+sudo chmod 700 /usr/local/sbin/fix-permissions
+sudo chown root:root /usr/local/sbin/fix-permissions
+
+## STEP 3: FIRST RUN AND TESTING
+## Run the script once manually to apply the policy before any package update does:
+sudo /usr/local/sbin/fix-permissions
+
+## Read the output. Every line reports a change or an error. Then verify each layer independently.
+
+## TEST 1: setuid removal. Pick a binary that was in your saved list and is not whitelisted, for example mount. The mode must end in 755 or 744, not 4755:
+stat -c '%a %n' /usr/bin/mount /usr/bin/passwd /usr/bin/su
+
+## And confirm only whitelisted setuid binaries remain:
+find /usr /opt -type f -perm /6000 -print
+
+## The output must show only the whitelist entries: sudo, nvidia-modprobe if installed, the dbus launch helper, and the Mullvad chrome-sandbox if installed. Everything else must be gone. Compare against ~/setuid-before.txt to see what changed.
+
+## TEST 2: the whitelist holds. The dbus helper keeps its setuid bit:
+find /usr/lib/ -type f -perm /4000
+
+## This must still list dbus-daemon-launch-helper. If it is empty, dbus-activated system services break.
+
+## TEST 3: capabilities. ping must have none, the three granted binaries must have exactly the expected caps:
+getcap /usr/bin/ping
+## Expected: no output.
+getcap /usr/bin/fusermount3 /usr/bin/unix_chkpwd /usr/lib/spice-client-glib-usb-acl-helper
+
+## TEST 4: the baseline. Spot-check directories and files from the list:
+stat -c '%a %U:%G %n' /root /boot /etc/ssh/sshd_config /usr/bin/gcc
+
+## Expected: 0700 root:root for /root, /boot, and gcc, 0600 for sshd_config.
+
+## TEST 5: functionality. The whole point is that the system still works:
+sudo -v
+
+## sudo must ask for a password and succeed. If sudo is broken, boot the Arch ISO, chroot in as described in the installation troubleshooting, and restore the bits from ~/setuid-before.txt.
+
+## TEST 6: the hook fires on updates. Install or reinstall any small package and watch pacman's output:
+sudo pacman -S --noconfirm vim
+## or:
+sudo pacman -Rns --noconfirm vim && sudo pacman -S --noconfirm vim
+
+## During the transaction you must see the "Restoring hardened permissions and capabilities" hook run. If a binary had its setuid bit restored by the package, the hook output shows "stripped setuid/setgid" for it again.
+
+## TEST 7: drift resistance. Manually restore a setuid bit the way an upstream package would, then let the hook remove it again:
+sudo chmod u+s /usr/bin/mount
+stat -c '%a' /usr/bin/mount
+## Shows 4755. Now run the script:
+sudo /usr/local/sbin/fix-permissions
+stat -c '%a' /usr/bin/mount
+## Must show 755 again. If it still shows 4755, the whitelist or the sweep is broken.
+
+## TEST 8: exit code. The script returns 0 only when nothing failed. Simulate a failure by pointing it at a read-only filesystem is overkill, instead check the success path:
+sudo /usr/local/sbin/fix-permissions; echo "exit code: $?"
+
+## A second run right after the first must exit 0 and print nothing except possibly cap grants already present. Idempotence is the proof: running twice changes nothing the second time.
+
+## TEST 9: unprivileged view. Log in as your regular user and confirm what an attacker sees. No setuid binaries to probe, no readable private configs:
+ls -la /usr/bin/passwd
+cat /etc/ssh/sshd_config
+## Both must fail with permission denied.
+
+## STEP 4: MAINTENANCE
+## When something breaks after an update, check this hook first: it prints exactly what it changed during the transaction. Use the saved lists as your reference for restoring.
+## When you install new software that needs a setuid bit or caps, add it to the whitelist or the grant list, not a one-time chmod. Otherwise the next update strips it again and the breakage returns.
+## Re-run the inventory from time to time, compare with the old file, and investigate anything new:
+find / -xdev -type f \( -perm -4000 -o -perm -2000 \) -exec ls -l {} + 2>/dev/null | sudo tee ~/setuid-after.txt
+diff ~/setuid-before.txt ~/setuid-after.txt
+
+## STEP 5: REMOVE RISKY PRIVILEGE-CARRYING BINARIES
+## chsh and chfn only exist to let users change their own login shell and GECOS fields. We removed their setuid bits, but on this system nobody changes either, and the accounts are managed by root directly. pkexec is polkit's privileged execution helper: with the policy agents and mask list we run, it has no job left, and it has a history of privilege escalation CVEs (PwnKit, CVE-2021-4034, and later ones). Removal beats both stripping and whitelisting: a deleted binary cannot be probed, cannot be abused, and cannot come back half-configured.
+## Removing them is safe only after the hook is in place, because package updates would otherwise silently reinstall them. We remove the files and tell pacman to never extract them again.
+
+## Remove the binaries:
+sudo rm -f /usr/bin/chsh /usr/bin/chfn /usr/bin/pkexec
+
+## Prevent pacman from restoring them on the next update of their packages. Add these lines to the [options] section of pacman.conf:
+sudo vim /etc/pacman.conf
+```ini
+NoExtract = usr/bin/chsh usr/bin/chfn usr/bin/pkexec
+```
+
+## Verify:
+ls /usr/bin/chsh /usr/bin/chfn /usr/bin/pkexec
+
+## All three must be gone. Test an update of the owning packages afterwards and confirm the files do not reappear:
+sudo pacman -S --noconfirm util-linux polkit
+ls /usr/bin/chsh /usr/bin/chfn /usr/bin/pkexec
+
+
+## References:
+- https://github.com/secureblue/secureblue
+- https://github.com/Kicksecure/security-misc
