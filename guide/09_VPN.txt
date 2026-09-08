@@ -58,8 +58,8 @@ DAITA on
 
 ## An adversary can log traffic/connections on the server without Mullvad knowing. By law, a hoster can be forced to do this. This is a way to bypass the no-logging policy of a VPN. You should enable multihop for better protection against this. Your entry and exit hop should be in two different jurisdictions. Two different countries. Preferably at least one country with strong privacy laws.
 ## Some past deanonymization vulnerabilities on Mullvad were harder or not possible to exploit with multihop on:
-- https://github.com/mullvad/mullvadvpn-app/blob/main/audits/2024-12-10-X41-D-Sec.md#mllvd-cr-24-04-deanonymization-through-nat-severity-medium
-- https://github.com/mullvad/mullvadvpn-app/blob/main/audits/2024-12-10-X41-D-Sec.md#mllvd-cr-24-05-deanonymization-through-mtu-severity-low
+## https://github.com/mullvad/mullvadvpn-app/blob/main/audits/2024-12-10-X41-D-Sec.md#mllvd-cr-24-04-deanonymization-through-nat-severity-medium
+## https://github.com/mullvad/mullvadvpn-app/blob/main/audits/2024-12-10-X41-D-Sec.md#mllvd-cr-24-05-deanonymization-through-mtu-severity-low
 ## To improve latency/performance in some cases if your ISP has suboptimal peering or routing to the location where you want to exit:
 Multihop on
 
