@@ -1,0 +1,213 @@
+## 5_NETWORK configuration
+- https://wiki.archlinux.org/title/Network_configuration
+
+## Programs like NetworkManager or dhcpcd are complex. They run constantly in the background, process network data, and have a large attack surface. If the adversary active on your local network finds an RCE in NetworkManager, they can hack your computer.
+## Instead of using those heavy programs, you can write a tiny, simple script (a custom service) that does exactly three things:
+## Turns on the network interface.
+## Assigns your static IP address.
+## The service closes (stops running).
+## The network interface stays on, your internet works, but the background program is gone. Because your custom script is so small and simple, it runs less code that a hacker can exploit. However, this comes with a catch. You must perfectly configure the start and shutdown order of this service. If you get the timing wrong, your real IP address will leak.
+## Unfortunately, I did not have the time to create and test the exact service timing required to prevent IP leaks. I refuse to publish a service configuration that could result in an IP leak. Because of this, I will be using NetworkManager. It is simply the easiest and most reliable way to spoof your MAC address and handle the shutdown order of VPN desktop clients. There is also a hardened systemd service configuration available for NetworkManager.
+
+## Install and enable NetworkManager
+sudo pacman -S networkmanager
+sudo systemctl enable NetworkManager
+sudo reboot
+
+## Show your connection. You can verify the settings in /etc/NetworkManager/system-connections:
+nmcli connection show
+
+## We use a static IP (ipv4.method=manual), so NetworkManager never instantiates its internal DHCP client. This reduces the remote code-execution attack surface.
+## Add a static IP address with nmcli
+## Replace <Connection Name> with your actual connection name. Replace the IP, gateway, and DNS with your desired network values:
+nmcli connection modify "<Connection Name>" ipv4.addresses 192.168.1.100/24
+nmcli connection modify "<Connection Name>" ipv4.gateway 192.168.1.1
+nmcli connection modify "<Connection Name>" ipv4.method manual
+nmcli connection up "<Connection Name>"
+
+## Disable IPv6
+## Disconnect from the internet first and view the IPv6 settings of your wired connection:
+nmcli con show "Wired connection 1" | grep ipv6
+
+## Disable all IPv6 networks:
+nmcli connection modify <Connection Name> ipv6.ip6-privacy 2
+nmcli connection modify <Connection Name> ipv6.method "disabled"
+
+## Force custom DNS and ignore auto-DNS
+## Set the DNS priority first, then apply your custom DNS to all active ethernet/wireless connections:
+nmcli connection modify <Connection Name> ipv4.dns-priority -1
+nmcli connection modify <Connection Name> ipv6.dns-priority -1
+
+## This is a single command
+nmcli -g name,type connection show --active | awk -F: '/ethernet|wireless/ { print $1 }' | while read connection
+do
+  nmcli con mod "$connection" ipv6.ignore-auto-dns yes
+  nmcli con mod "$connection" ipv4.ignore-auto-dns yes
+  nmcli con mod "$connection" ipv4.dns "10.64.0.1"
+  nmcli con down "$connection" && nmcli con up "$connection"
+done
+
+## Stop the lo connection from starting the internal DHCP client
+## "disabled" and "ignore" are not supported on loopback, so use manual with the canonical loopback address:
+## ONLY DO THIS WHEN YOU DISABLE IPV6! I did not analyse what problems this could cause with IPv6 enabled
+nmcli con modify "lo" ipv6.method manual ipv6.addresses "::1/128"
+
+## Make configurations persistent
+## Lock the connection files to prevent them from being overwritten. Note: if you run into permission errors doing this with sudo, enter root first and move to the folder:
+sudo bash
+cd /etc/NetworkManager/system-connections/
+chattr +i *
+exit
+
+## Disable/Remove connectivity checks. Connectivity checks leak the VPN exit IPs to the uri
+sudo vim /usr/lib/NetworkManager/conf.d/20-connectivity.conf
+```
+[connectivity]
+uri=
+```
+
+## Lock the connectivity conf file so NetworkManager stops checking externally:
+sudo chattr +i /usr/lib/NetworkManager/conf.d/20-connectivity.conf
+
+## Create a disable/remove connectivity override
+sudo vim /etc/NetworkManager/conf.d/99-disable-connectivity.conf
+```
+[connectivity]
+uri=
+enabled=false
+```
+
+## Disable transient hostname
+sudo vim /usr/lib/NetworkManager/conf.d/01-transient-hostname.conf
+
+## Add the following to the file:
+```ini
+[main]
+hostname-mode=none
+```
+
+## Enable MAC changer
+## Remove any existing MAC restrictions and create a new randomization rule:
+sudo rm -f /usr/lib/NetworkManager/conf.d/no-mac-addr-change.conf
+sudo vim /usr/lib/NetworkManager/conf.d/80_randomize-mac.conf
+
+## Add the following to the file:
+```ini
+[device-mac-randomization]
+wifi.scan-rand-mac-address=yes
+
+[connection-mac-randomization]
+ethernet.cloned-mac-address=random
+wifi.cloned-mac-address=random
+```
+
+## Test MAC changer
+## Write down your MAC addresses
+cat /sys/class/net/*/address
+ip link show
+
+## Reboot your system, then verify that your MAC addresses have changed:
+cat /sys/class/net/*/address
+ip link show
+
+## Harden the systemd service of NetworkManager:
+sudo mkdir -p /usr/lib/systemd/system/NetworkManager.service.d/
+sudo vim /usr/lib/systemd/system/NetworkManager.service.d/40-killmode.conf
+```ini
+[Service]
+KillMode=control-group
+```
+sudo vim /usr/lib/systemd/system/NetworkManager.service.d/40-sandbox.conf
+```ini
+[Service]
+CapabilityBoundingSet=~CAP_DAC_OVERRIDE CAP_SETGID CAP_SETUID CAP_KILL
+CapabilityBoundingSet=~CAP_SYS_MODULE CAP_AUDIT_WRITE CAP_SYS_CHROOT CAP_BPF
+DevicePolicy=closed
+# NM requires access to /run/dbus/
+InaccessiblePaths=/run/user/
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateDevices=true
+PrivateTmp=disconnected
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=private
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+ReadWritePaths=/proc/sys/net/ /var/lib/NetworkManager/ /etc/NetworkManager/
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @privileged
+SystemCallFilter=~@clock @module @mount @obsolete
+SystemCallFilter=~@swap @reboot @raw-io @module
+SystemCallFilter=~@resources @memlock @aio
+SystemCallFilter=~@setuid @keyring
+UMask=077
+```
+
+## Use this NetworkManager drop-in if you use OpenVPN:
+sudo vim /usr/lib/systemd/system/NetworkManager.service.d/40-sandbox-OpenVPN.conf
+```ini
+[Service]
+CapabilityBoundingSet=~CAP_AUDIT_WRITE CAP_BPF CAP_DAC_OVERRIDE CAP_KILL CAP_SYS_CHROOT CAP_SYS_MODULE
+DeviceAllow=/dev/net/tun
+DevicePolicy=closed
+# NM requires access to /run/dbus/
+InaccessiblePaths=/run/user/
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateTmp=disconnected
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectHostname=private
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+ReadWritePaths=/proc/sys/net/ /var/lib/NetworkManager/ /etc/NetworkManager/
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @privileged
+SystemCallFilter=~@clock @module @mount @obsolete @swap @reboot @raw-io @module
+SystemCallFilter=~@resources @memlock @aio @keyring
+UMask=077
+```
+
+## Make sure nothing is set on =auto. It can start the internal DHCP client of Network Manager and might increase the attack surface
+## This is a single command. You should see no FAILs.
+fail=0
+while IFS= read -r c; do
+  m4=$(nmcli -g ipv4.method con show "$c")
+  m6=$(nmcli -g ipv6.method con show "$c")
+  printf '%-30s ipv4=%-8s ipv6=%-8s\n' "$c" "$m4" "$m6"
+  [[ "$m4" =~ ^(manual|disabled)$ ]]        || { echo "    FAIL: ipv4.method=$m4"; fail=1; }
+  [[ "$m6" =~ ^(manual|disabled|ignore)$ ]] || { echo "    FAIL: ipv6.method=$m6"; fail=1; }
+done < <(nmcli -t -f NAME con show)
+
+## Disable hostname leak to the DNS service by sudo:
+sudo vim /etc/sudoers.d/disable-hostname-leak.conf
+```ini
+Defaults !fqdn
+```
+
+
+
+## References:
+- https://privsec.dev/posts/linux/desktop-linux-hardening/
+- https://mako088.github.io/arch/
+- https://github.com/secureblue/secureblue
+- https://github.com/Kicksecure/security-misc
+- https://wiki.archlinux.org/title/Network_configuration
+

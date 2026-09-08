@@ -1,0 +1,173 @@
+## 10_SOME_APPS_AND_HARDENING
+
+## First we install the packages that the rest of this guide depends on:
+sudo pacman -S wget reflector zstd git openresolv torsocks
+
+## Be sure you install Apparmor 5. At the time of writing apparmor 5 is in extra-testing. You have to enable extra-testing if Apparmor 5 is not in the default repository
+sudo vim /etc/pacman.conf
+## Uncomment extra-testing
+```ini
+[extra-testing]
+Include = /etc/pacman.d/mirrorlist
+```
+sudo pacman -Sy
+sudo pacman -S apparmor apparmor-utils
+
+# disable extra-testing again
+sudo vim /etc/pacman.conf
+## Place # at extra-testing
+```ini
+#[extra-testing]
+#Include = /etc/pacman.d/mirrorlist
+```
+
+## Turn AppArmor on so it loads on every boot:
+sudo systemctl enable apparmor
+
+## Next, create the account you will actually use day to day:
+useradd user
+sudo passwd user
+sudo chown user:user -R /home/user
+sudo chmod 700 /home/user
+
+## The following blocks take care of services that leak data, open ports, or run with more privileges than they need. Which of them are present on your machine depends on your Desktop Environment, and many will not even be installed. Mask them all the same. That way nothing slips in unnoticed later.
+
+## Shut down systemd-imds:
+sudo systemctl disable systemd-imds.service
+sudo systemctl mask systemd-imds.service
+
+## Do the same with Passim. Background: https://wiki.archlinux.org/title/Fwupd
+sudo systemctl disable passim.service
+sudo systemctl mask passim.service
+
+## Open the fwupd configuration and set "P2pPolicy=nothing" inside the [fwupd] section:
+sudo vim /etc/fwupd/fwupd.conf
+
+## Take down Avahi completely:
+sudo systemctl disable avahi-daemon.service
+sudo systemctl mask avahi-daemon.service
+sudo systemctl disable avahi-daemon.socket
+sudo systemctl mask avahi-daemon.socket
+sudo systemctl disable avahi-dnsconfd.service
+sudo systemctl mask avahi-dnsconfd.service
+
+## Disable printing services if you do not use printer:
+sudo systemctl disable cups.socket
+sudo systemctl mask cups.socket
+sudo systemctl disable cups.service
+sudo systemctl mask cups.service
+sudo systemctl disable cups-browsed.service
+sudo systemctl mask cups-browsed.service
+
+## Disable printing services if you do not use Wi-FI:
+sudo systemctl disable wpa_supplicant
+sudo systemctl mask wpa_supplicant
+
+## Stop sshd-vsock
+sudo systemctl disable sshd-vsock.socket
+sudo systemctl mask sshd-vsock.socket
+
+## Stop ALSA from persisting mixer state:
+sudo systemctl disable alsa-state.service
+sudo systemctl mask alsa-state.service
+
+## Mask the GeoClue daemon:
+sudo systemctl disable geoclue.service
+sudo systemctl mask geoclue.service
+
+## iSCSI belongs on storage servers, not here:
+sudo systemctl disable iscsid.service
+sudo systemctl mask iscsid.service
+sudo systemctl disable iscsid.socket
+sudo systemctl mask iscsid.socket
+sudo systemctl disable iscsiuio.service
+sudo systemctl mask iscsiuio.service
+sudo systemctl disable iscsiuio.socket
+sudo systemctl mask iscsiuio.socket
+
+## The same goes for ModemManager:
+sudo systemctl disable ModemManager.service
+sudo systemctl mask ModemManager.service
+
+## NFS drags a whole stack of daemons with it. Mask them all:
+sudo systemctl disable nfs-idmapd.service
+sudo systemctl mask nfs-idmapd.service
+sudo systemctl disable nfs-client.target
+sudo systemctl mask nfs-client.target
+sudo systemctl disable nfs-blkmap.service
+sudo systemctl mask nfs-blkmap.service
+sudo systemctl disable nfs-mountd.service
+sudo systemctl mask nfs-mountd.service
+sudo systemctl disable nfsdcld.service
+sudo systemctl mask nfsdcld.service
+sudo systemctl disable nfs-server.service
+sudo systemctl mask nfs-server.service
+sudo systemctl disable nfs-utils.service
+sudo systemctl mask nfs-utils.service
+sudo systemctl disable rpc-gssd.service
+sudo systemctl mask rpc-gssd.service
+sudo systemctl disable rpc-statd-notify.service
+sudo systemctl mask rpc-statd-notify.service
+sudo systemctl disable rpc-statd.service
+sudo systemctl mask rpc-statd.service
+sudo systemctl disable rpcbind.service
+sudo systemctl mask rpcbind.service
+sudo systemctl disable rpcbind.socket
+sudo systemctl mask rpcbind.socket
+sudo systemctl disable rpcbind.target
+sudo systemctl mask rpcbind.target
+sudo systemctl disable rpc_pipefs.target
+sudo systemctl disable gssproxy.service
+sudo systemctl mask gssproxy.service
+sudo systemctl disable var-lib-nfs-rpc_pipefs.mount
+sudo systemctl mask var-lib-nfs-rpc_pipefs.mount
+
+## DNS is handled outside of systemd here, so the built-in resolver is not needed:
+sudo systemctl disable systemd-resolved.service
+sudo systemctl mask systemd-resolved.service
+
+## Time is handled outside of systemd here, so the built-in resolver is not needed:
+sudo systemctl disable systemd-timesyncd.service
+sudo systemctl mask systemd-timesyncd.service
+
+## This machine should never accept incoming ssh connections:
+sudo systemctl disable sshd.service
+sudo systemctl mask sshd.service
+sudo systemctl disable sshd.socket
+sudo systemctl mask sshd.socket
+sudo systemctl disable sshd-unix-local.socket
+sudo systemctl mask sshd-unix-local.socket
+sudo systemctl disable sshd-keygen.target
+sudo systemctl mask sshd-keygen.target
+
+## sssd is yet another daemon stack with no purpose on this setup:
+sudo systemctl disable sssd.service
+sudo systemctl mask sssd.service
+sudo systemctl disable sssd-kcm.service
+sudo systemctl mask sssd-kcm.service
+sudo systemctl disable sssd-kcm.socket
+sudo systemctl mask sssd-kcm.socket
+
+## A few services run as unconfined root. Switch them off:
+sudo systemctl disable uresourced.service
+sudo systemctl mask uresourced.service
+sudo systemctl disable low-memory-monitor.service
+sudo systemctl mask low-memory-monitor.service
+sudo systemctl disable thermald.service
+sudo systemctl mask thermald.service
+
+## Repeat this step for every user account on the system:
+systemctl mask --user uresourced.service
+
+## Bluetooth can be re-enabled any time you actually need it:
+sudo systemctl disable bluetooth.service
+sudo systemctl mask bluetooth.service
+
+## systemd-homed-firstboot.service already ships preset-disabled. The commands below are a safety net in case a future release flips that default:
+sudo systemctl disable systemd-homed-activate.service
+sudo systemctl disable systemd-homed-firstboot.service
+sudo systemctl disable systemd-homed.service
+
+## References:
+## Many sources I forgot to write down
+- https://github.com/secureblue/secureblue/blob/live/files/scripts/

@@ -1,0 +1,53 @@
+## 6a_SECUREBOOT
+
+## Boot into the BIOS and enable Secureboot.
+## Enabling Setup Mode in UEFI (BIOS)
+## First, we need to go to the firmware settings and set secure boot mode to "Setup Mode". You can reboot from an already running system to the firmware settings with the following command:
+sudo systemctl reboot --firmware-setup
+
+## In most BIOS management software it is unclear how to enable setup mode. In some you can select custom secure boot and enable SetupMode. In others you need to reset all Secureboot-related keys first. In some you need to reload default settings, save and exit, boot into the BIOS again, "restore factory keys", save and exit.
+## Read the References if you can't get into SetupMode
+## Install sbctl and check if setup mode is enabled:
+sudo pacman -S sbctl
+sudo sbctl status
+
+## If SetupMode is enabled, you need to create and enroll keys:
+sudo sbctl create-keys
+
+## Sometimes efivars is set as read-only. Enable writing on the file with:
+chattr -i filename
+
+## Enroll your keys. BE CAREFUL HERE. It is better if you enroll your own keys only and not Microsoft or firmware keys too. Only do this when you know what you are doing. Not enrolling Microsoft/firmware keys can brick your machine.
+## Own keys only:
+sudo sbctl enroll-keys
+
+## Warning: if you enroll Secure Boot with Microsoft keys, consider disabling USB booting in your BIOS. This makes you more vulnerable to Evil maid attacks. A malicious USB stick with a Microsoft-signed bootloader is still allowed to boot when Microsoft keys are enrolled.
+- https://madaidans-insecurities.github.io/guides/linux-hardening.html#physical-security
+- https://www.kicksecure.com/wiki/AEM
+## Own keys with Microsoft keys:
+sudo sbctl enroll-keys -m
+
+## Own keys with Microsoft and firmware keys:
+sudo sbctl enroll-keys -m -f
+
+## Check the status of sbctl again to make sure that the keys are enrolled and setup mode is disabled:
+sudo sbctl status
+
+## If you removed read-only on the efivars, you enable read-only again after creating the keys:
+chattr +i filename
+
+## Sign the kernel and GRUB:
+sbctl sign /boot/efi/EFI/GRUB/grubx64.efi
+sbctl sign /boot/vmlinuz-linux
+
+## If you used the --removable flag in GRUB:
+sbctl sign /boot/efi/EFI/BOOT/BOOTX64.EFI
+
+## If you update GRUB after a pacman update, re-sign with sbctl.
+
+## References:
+- https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot
+- https://wiki.cachyos.org/configuration/secure_boot_setup/
+- https://uclab.dev/posts/arch-linux-secureboot/
+- https://madaidans-insecurities.github.io/guides/linux-hardening.html#physical-security
+- https://www.kicksecure.com/wiki/AEM

@@ -1,0 +1,131 @@
+## 6b_SECUREBOOT_SHIM
+
+## Secure boot with SHIM
+## Boot into the BIOS and enable Secureboot.
+## Enabling Setup Mode in UEFI (BIOS)
+## First, we need to go to the firmware settings and set secure boot mode to "Setup Mode". You can reboot from an already running system to the firmware settings with the following command:
+sudo systemctl reboot --firmware-setup
+
+## In most BIOS management software it is unclear how to enable setup mode. In some you can select custom secure boot and enable setup mode. In others you need to reset all Secureboot-related keys first. In some you need to reload default settings, save and exit.
+## Boot into the BIOS again, "restore factory keys", save and exit.
+## Install sbctl and check if setup mode is enabled:
+sudo pacman -S sbctl
+sudo sbctl status
+
+## If SetupMode is enabled, you need to create and enroll keys:
+sudo sbctl create-keys
+
+## Sometimes efivars is set as read-only. Enable writing on the file with:
+chattr -i filename
+
+## Enroll your keys. BE CAREFUL HERE. It is better if you enroll your own keys only and not Microsoft or firmware keys too. Only do this when you know what you are doing. Not enrolling Microsoft/firmware keys can brick your machine.
+## Own keys only:
+sudo sbctl enroll-keys
+
+## Warning: if you enroll Secure Boot with Microsoft keys, consider disabling USB booting in your BIOS. This makes you more vulnerable to Evil maid attacks. A malicious USB stick with a Microsoft-signed bootloader is still allowed to boot when Microsoft keys are enrolled.
+- https://madaidans-insecurities.github.io/guides/linux-hardening.html#physical-security
+- https://www.kicksecure.com/wiki/AEM
+## Own keys with Microsoft keys:
+sudo sbctl enroll-keys -m
+
+## Own keys with Microsoft and firmware keys:
+sudo sbctl enroll-keys -m -f
+
+## Check the status of sbctl again to make sure that the keys are enrolled and setup mode is disabled:
+sudo sbctl status
+
+## If you removed read-only on the efivars, you enable read-only again after creating the keys:
+chattr +i filename
+
+## Check the name of your kernel file:
+sudo ls -l /boot
+
+## Sign the kernel file and GRUB:
+sbctl sign /boot/efi/EFI/GRUB/grubx64.efi
+sbctl sign /boot/vmlinuz-linux
+
+## Install shim:
+git clone https://aur.archlinux.org/shim-signed.git
+cd shim-signed
+makepkg -si
+
+## Install sbsigntools, efibootmgr, and mokutil:
+sudo pacman -S sbsigntools efibootmgr mokutil
+
+## Copy Ubuntu's signed shim files (path can be /EFI/BOOT if you used --removable):
+sudo cp /usr/share/shim-signed/shimx64.efi /boot/efi/EFI/GRUB/
+sudo cp /usr/share/shim-signed/mmx64.efi /boot/efi/EFI/GRUB/
+
+## Generate MOK (Machine Owner Key):
+sudo mkdir -p /root/signing-tools
+sudo chmod 700 /root/signing-tools
+
+## Generate an RSA key pair and a self-signed certificate:
+sudo openssl req -newkey rsa:2048 -nodes \
+  -keyout /root/signing-tools/keys/MOK.key \
+  -new -x509 -sha256 -days 3650 \
+  -subj "/CN=Arch Linux MOK/" \
+  -out /root/signing-tools/keys/MOK.crt
+
+## Convert the certificate to DER format (required by MOK):
+sudo openssl x509 -outform DER \
+  -in /root/signing-tools/keys/MOK.crt \
+  -out /root/signing-tools/keys/MOK.cer
+
+## Sign the grubx64.efi:
+sudo sbsign --key /root/signing-tools/keys/MOK.key \
+       --cert /root/signing-tools/keys/MOK.crt \
+       --output /boot/efi/EFI/GRUB/grubx64.efi \
+       /boot/efi/EFI/GRUB/grubx64.efi
+
+## Sign the kernel:
+sudo sbsign --key /root/signing-tools/keys/MOK.key \
+       --cert /root/signing-tools/keys/MOK.crt \
+       --output /boot/vmlinuz \
+       /boot/vmlinuz-linux
+
+## Schedule the MOK enrollment for the next boot:
+sudo mokutil --import /root/signing-tools/keys/MOK.cer
+
+## You will be prompted to set a password. Remember this password, you will need it on the next boot!
+## Step 7: Create EFI Boot Entry
+## Important: Replace /dev/sdX with your actual disk device (e.g. /dev/sda or /dev/nvme0n1).
+## Find your disk device:
+lsblk
+
+## Create a boot entry pointing to shim:
+sudo efibootmgr --create --disk /dev/sdX --part 1 \
+  --loader /EFI/arch/shimx64.efi \
+  --label "Arch Linux" --unicode
+
+## Sign the shim files with sbctl too:
+sbctl sign -s /boot/efi/EFI/GRUB/shimx64.efi
+sbctl sign -s /boot/efi/EFI/GRUB/mmx64.efi
+
+## If you update GRUB after a pacman update, re-sign with sbctl and sbsign
+
+## This is an untested hook to auto sign
+sudo mkdir /etc/pacman.d/hooks
+sudo vim /etc/pacman.d/hooks/999-sign-kernel.hook
+```ini
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux
+
+[Action]
+Description = Signing kernel for Secure Boot
+When = PostTransaction
+Exec = /usr/bin/sbsign --key /root/signing-tools/keys/MOK.key --cert /root/signing-tools/keys/MOK.crt --output /boot/vmlinuz-linux /boot/vmlinuz-linux
+Depends = sbsigntools
+```
+
+## Note: Adjust the Target lines and Exec paths based on which kernel(s) you use.
+
+## References:
+- https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot
+- https://wiki.cachyos.org/configuration/secure_boot_setup/
+- https://uclab.dev/posts/arch-linux-secureboot/
+- https://madaidans-insecurities.github.io/guides/linux-hardening.html#physical-security
+- https://www.kicksecure.com/wiki/AEM

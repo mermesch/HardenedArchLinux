@@ -1,0 +1,50 @@
+## 4_DESKTOP_ENVIRONMENT
+
+## X11 is insecure. You must select a Desktop Environment that supports Wayland. Please read the discussions:
+- https://www.kicksecure.com/wiki/Dev/GNOME
+- https://github.com/Kicksecure/security-misc/issues/168
+- https://github.com/QubesOS/qubes-issues/issues/1806#issuecomment-1768557436
+- https://secureblue.dev/images
+## Minimalistic GNOME (gnome-core) has privacy and strong security concerns.
+## Minimalistic KDE/Plasma has privacy and security concerns and is a bit bloated.
+## The main privacy concern of KDE and GNOME is Geoclue. Geoclue can be disabled.
+## The best choice seems to be LXQt at the time of writing. I never installed it. I will give instructions to harden KDE and GNOME.
+
+## Desktop Environment installation
+## Boot your computer and log in.
+## Add an interface with a static IP for internet (in a VM this does not work. You will need to install NetworkManager from pacstrab and start it):
+sudo ip link set dev eth0 up
+sudo ip addr add 192.168.1.100/24 brd + dev eth0
+sudo ip route add default via 192.168.1.1
+
+
+## GNOME:
+sudo pacman -S gdm gnome-console gnome-text-editor
+
+## Test if it works:
+sudo systemctl start gdm
+
+## If you want to start the desktop environment from boot:
+sudo systemctl enable gdm
+
+
+## KDE:
+## "plasma-desktop" is more minimal than "plasma".
+sudo pacman -S plasma-desktop konsole kate
+
+## Test if it works:
+sudo systemctl start sddm
+
+## If you want to start the desktop environment from boot:
+sudo systemctl enable sddm
+
+
+## LXQt (UNTESTED)
+## I never installed this. Read the wiki for instructions: https://wiki.archlinux.org/title/LXQt
+
+
+## References:
+- https://www.kicksecure.com/wiki/Dev/GNOME
+- https://github.com/Kicksecure/security-misc/issues/168
+- https://github.com/QubesOS/qubes-issues/issues/1806#issuecomment-1768557436
+- https://secureblue.dev/images

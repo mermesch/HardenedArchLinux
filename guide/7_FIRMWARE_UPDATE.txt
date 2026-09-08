@@ -1,0 +1,30 @@
+## 7_FIRMWARE_UPDATE
+
+## Firmware runs below the OS: UEFI, the SSD controller, the CPU microcode, the embedded controller. A vulnerable firmware image survives every hardening in this guide. 
+## Firmware updates are exactly the trust-heavy downloads you want on a freshly installed, not-yet-hardened system rather than inside an anonymous identity that could be linked to it. So we update firmware manually, once, and keep the services off.
+## Install  fwupd 
+sudo pacman -S fwupd
+
+## List devices with pending updates (see the output for each entry):
+fwupdmgr get-devices
+fwupdmgr refresh --force
+fwupdmgr get-updates
+
+## Install the updates:
+fwupdmgr update
+
+# reboot and check for updates again
+fwupdmgr get-updates
+
+## Install the update if there are some available:
+fwupdmgr update
+
+## Reboot again 
+
+## Afterwards, mask the daemon:
+sudo systemctl stop fwupd-refresh.service
+sudo systemctl stop fwupd.service
+sudo systemctl mask fwupd.service
+
+## Lenovo, Dell, HP, and System76 machines can also check the vendor's own update mechanism, but fwupdmgr covers most of them.
+

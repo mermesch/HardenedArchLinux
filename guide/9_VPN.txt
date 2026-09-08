@@ -1,0 +1,137 @@
+## 9_VPN selection
+
+## You can argue whether choosing a VPN is secure. Read: https://www.whonix.org/wiki/Whonix_versus_VPNs#Security_Experts_Opinion_on_VPNs. There are concerns with many VPNs like NordVPN,PIA, CyberGhost, and ExpressVPN. I'm not going to explain the risks of using a VPN provider.
+## Reasons for people to use a VPN with DAITA before connecting to tor:
+## 1. A lack of trust in tor to fully rely on it:
+## Many tor nodes are owned by a few parties. Are they malicious? https://metrics.nothingtohide.nl/index.html#exit_authority
+## More than 60% of the tor nodes are hosted in a few countries (the United States, Germany, the Netherlands, and France): https://metrics.nothingtohide.nl/misc/countries-by-bandwidth.html
+## The chance your guard is from netcup (Germany), Hetzner (Germany), OVH (France), or 1aeo (US) is 40%. Even if the owners of the servers have no malicious intent, the hoster can still run traffic analytics on the servers.
+## If many nodes are malicious, how big is the chance you get deanonymized if you visit websites that do not have a .onion address? It could be better to hide behind an IP that is shared among many others.
+## 2. They don't want the ISP/government to see that they use tor.
+## 3. They trust a VPN more than the ISP/government.
+## 4. PQ encryption that tor does not have.
+## 5. Better protection against DPI traffic analytics than tor alone.
+
+## If you want to use a VPN, I think Mullvad is the best pick, for a few reasons:
+## 1. Open-source.
+## 2. No known suspicious background.
+## 3. Mullvad has the best reputation in the privacy/security field, gained by a long time of events.....
+## 4. They do many audits.
+## 5. Mullvad is, at the time of writing, one of the few VPNs that has protection against traffic analytics by AI in their client: https://mullvad.net/en/vpn/daita
+## 6. Mullvad's post-quantum encryption supports Classic McEliece in addition to ML-KEM. It uses Classic McEliece and Kyber/ML-KEM simultaneously, implementing the principle of hybrid cryptography: even if one of the algorithms is compromised, the connection is still protected by the other. Even though ML-KEM is accepted by NIST, it has many critics and might break. Some other VPNs that have PQ encryption do not use Classic McEliece as a hybrid solution. They only rely on ML-KEM for PQ encryption. That is not the most secure solution against "Harvest now, decrypt later" attacks.
+
+## Mullvad App
+## There are Mullvad Apps available for Arch Linux:
+## 1. https://archlinux.org/packages/extra/x86_64/mullvad-vpn/ | official Arch repo. It is often a month behind Mullvad upstream. It can take a month before you get security updates. This binary has more bugs too.
+## 2. AUR package: https://aur.archlinux.org/packages/mullvad-vpn-bin | quick and it works.
+
+## AUR installation
+- https://mullvad.net/en/open-source
+- https://mullvad.net/en/help/verifying-signatures
+## The fingerprint of our code signing key is A1198702FC3E0A09A9AE5B75D5A1D4F266DE8DDF (with spaces: A119 8702 FC3E 0A09 A9AE 5B75 D5A1 D4F2 66DE 8DDF) ## it can be downloaded from our website or by using wget in a Linux terminal:
+sudo pacman -S wget git
+cd /home/admin/Downloads
+wget https://mullvad.net/media/mullvad-code-signing.asc
+gpg --import mullvad-code-signing.asc
+gpg --fingerprint admin@mullvad.net
+
+git clone https://aur.archlinux.org/mullvad-vpn-bin
+cd mullvad-vpn-bin
+makepkg -i
+
+## Configuration
+## Always start Mullvad on boot:
+Launch app on start-up on
+Auto-connect on
+
+## Make your computer less accessible from your home network (important against attacks from offline, your ISP, your router, and devices on your local network):
+Local network sharing off
+
+## To prevent IP leaks:
+Lockdown mode on
+
+## We disable IPv6 on the host. No reason to enable it in Mullvad:
+IPV4 only
+
+## Protection against AI traffic analytics. It slows down your internet. "Direct Only" slows down your internet less:
+DAITA on
+
+## An adversary can log traffic/connections on the server without Mullvad knowing. By law, a hoster can be forced to do this. This is a way to bypass the no-logging policy of a VPN. You should enable multihop for better protection against this. Your entry and exit hop should be in two different jurisdictions. Two different countries. Preferably at least one country with strong privacy laws.
+## Some past deanonymization vulnerabilities on Mullvad were harder or not possible to exploit with multihop on:
+- https://github.com/mullvad/mullvadvpn-app/blob/main/audits/2024-12-10-X41-D-Sec.md#mllvd-cr-24-04-deanonymization-through-nat-severity-medium
+- https://github.com/mullvad/mullvadvpn-app/blob/main/audits/2024-12-10-X41-D-Sec.md#mllvd-cr-24-05-deanonymization-through-mtu-severity-low
+## To improve latency/performance in some cases if your ISP has suboptimal peering or routing to the location where you want to exit:
+Multihop on
+
+## Harvest now, decrypt later attacks are a serious risk:
+Quantum-resistant tunnel on
+
+## !!Regularly rotating your WireGuard keys improves security by:
+## Minimizing Exposure: Regular key rotation reduces the window of opportunity for potential attackers to exploit compromised keys.
+## Enhancing Anonymity: Changing IP addresses and endpoints frequently helps in maintaining anonymity by making it more difficult to track online activities.
+## Compliance: Some security policies and compliance frameworks recommend or require regular key rotations as part of best practices for maintaining secure communications.
+## When you use WireGuard, you have the same exit IP for your exit server until your key is rotated. Mullvad rotates your key every 30 days. This means you have the same exit IP for 30 days on an exit server. This increases the risk of tor identity correlation attacks on your VM.
+## You can rotate the keys every 24 hours:
+mullvad tunnel set rotation-interval 24
+
+## Mullvad rotation interval seems to reset after updating?
+mullvad tunnel get
+mullvad set rotation-interval 24
+mullvad tunnel get
+
+## But there is a pitfall with rotating keys every 24 hours. 1-5% of the Mullvad users use the same exit IP on a specific exit server: https://tmctmt.com/posts/mullvad-exit-ips-as-a-fingerprinting-vector/pubkeys.txt. If a malicious tor circuit can catch two different exit IPs on two different days in a short time frame for two services, the proof of correlation is stronger.
+## In general, if you want different "identities", you should make sure to rotate or use different WireGuard keys: https://news.ycombinator.com/item?id=48145679#48151547. If you want different identities within these 24 hours, you should change them manually with this command:
+mullvad tunnel set rotate-key
+
+## Reboot and, when disconnected, check. If there is nameserver 8.8.4.4, change it to 10.64.0.1:
+sudo vim /etc/resolv.conf.mullvadbackup
+```ini
+nameserver 10.64.0.1
+```
+
+## Disable Mullvad at boot, reboot, and check resolv.conf. If there is nameserver 8.8.4.4, change it to 10.64.0.1:
+sudo disable /usr/lib/systemd/system/mullvad-daemon.service
+sudo reboot
+sudo vim /etc/resolv.conf
+
+## Enable Mullvad at boot and disable NetworkManager from managing the DNS:
+sudo enable /usr/lib/systemd/system/mullvad-daemon.service
+sudo vim /etc/NetworkManager/conf.d/no-dns.conf
+```ini
+[main]
+dns=none
+rc-manager=unmanaged
+```
+
+## Reboot and check if dns=none:
+journalctl -u NetworkManager -b | grep -i 'dns-mgr\|resolv'
+
+## Check if the Mullvad rules are active:
+sudo nft list ruleset
+
+## When you create a new user, you need to set some settings in the Mullvad GUI for this user again.
+
+## When you install Mullvad on Secureblue, you have to check for DNS leaks. I think Secureblue do not allow Mullvad to change DNS
+
+## WireGuard client instead of the Mullvad App:
+## Read: https://mullvad.net/en/help/wireguard-and-mullvad-vpn
+## Read: https://wiki.archlinux.org/title/Mullvad
+## The WireGuard client has no native DAITA and PQ encryption support.
+## There are ways to enable PQ encryption for the WireGuard client: https://github.com/mullvad/wgephemeralpeer
+- https://github.com/maybenot-io/maybenot
+
+## Why WireGuard and not OpenVPN? Smaller code base, less attack surface.
+
+## Shadow port attack CVE-2021-3773. Mullvad is not vulnerable since they use different entry and exit IP addresses
+
+## References
+- https://www.tenable.com/plugins/nessus/250236
+- https://citizenlab.ca/vulnerabilities-in-vpns-paper-presented-at-the-privacy-enhancing-technologies-symposium-2024/
+- https://mullvad.net/en/blog/introducing-shadowsocks-obfuscation-for-wireguard
+- https://wiki.archlinux.org/title/Mullvad
+- https://github.com/mullvad/wgephemeralpeer
+- https://github.com/maybenot-io/maybenot
+- https://mullvad.net/en/vpn/daita
+- https://www.whonix.org/wiki/Whonix_versus_VPNs#Security_Experts_Opinion_on_VPNs
+- https://metrics.nothingtohide.nl/index.html#exit_authority
+- https://metrics.nothingtohide.nl/misc/countries-by-bandwidth.html
