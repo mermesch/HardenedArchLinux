@@ -1,5 +1,5 @@
 ## 5_NETWORK configuration
-- https://wiki.archlinux.org/title/Network_configuration
+## https://wiki.archlinux.org/title/Network_configuration
 
 ## Programs like NetworkManager or dhcpcd are complex. They run constantly in the background, process network data, and have a large attack surface. If the adversary active on your local network finds an RCE in NetworkManager, they can hack your computer.
 ## Instead of using those heavy programs, you can write a tiny, simple script (a custom service) that does exactly three things:
