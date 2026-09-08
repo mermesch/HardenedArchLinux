@@ -59,6 +59,7 @@ sudo vim /etc/ld.so.preload
 ```
 sudo chmod 644 /etc/ld.so.preload
 
+## Reboot so every service and session picks up the allocator.
 
 ## Run the test suite from the repository directory to confirm the allocator works on this hardware:
 cd ~/Downloads/hardened_malloc
@@ -83,10 +84,6 @@ sudo vim /etc/ld.so.preload
 #```ini
 #LD_PRELOAD=libhardened_malloc.so
 #```
-
-## You can also try the light version of the allocator. Read https://github.com/GrapheneOS
-
-## Reboot so every service and session picks up the allocator.
 
 ## References:
 - https://github.com/secureblue/secureblue
