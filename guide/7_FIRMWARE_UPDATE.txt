@@ -1,4 +1,4 @@
-## 7_FIRMWARE_UPDATE
+## 07_FIRMWARE_UPDATE
 
 ## Firmware runs below the OS: UEFI, the SSD controller, the CPU microcode, the embedded controller. A vulnerable firmware image survives every hardening in this guide. 
 ## Firmware updates are exactly the trust-heavy downloads you want on a freshly installed, not-yet-hardened system rather than inside an anonymous identity that could be linked to it. So we update firmware manually, once, and keep the services off.
