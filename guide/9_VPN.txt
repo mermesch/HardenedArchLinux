@@ -26,8 +26,8 @@
 ## 2. AUR package: https://aur.archlinux.org/packages/mullvad-vpn-bin | quick and it works.
 
 ## AUR installation
-- https://mullvad.net/en/open-source
-- https://mullvad.net/en/help/verifying-signatures
+## https://mullvad.net/en/open-source
+## https://mullvad.net/en/help/verifying-signatures
 ## The fingerprint of our code signing key is A1198702FC3E0A09A9AE5B75D5A1D4F266DE8DDF (with spaces: A119 8702 FC3E 0A09 A9AE 5B75 D5A1 D4F2 66DE 8DDF) ## it can be downloaded from our website or by using wget in a Linux terminal:
 sudo pacman -S wget git
 cd /home/admin/Downloads
@@ -118,7 +118,7 @@ sudo nft list ruleset
 ## Read: https://wiki.archlinux.org/title/Mullvad
 ## The WireGuard client has no native DAITA and PQ encryption support.
 ## There are ways to enable PQ encryption for the WireGuard client: https://github.com/mullvad/wgephemeralpeer
-- https://github.com/maybenot-io/maybenot
+## https://github.com/maybenot-io/maybenot
 
 ## Why WireGuard and not OpenVPN? Smaller code base, less attack surface.
 
