@@ -23,8 +23,8 @@ chattr -i filename
 sudo sbctl enroll-keys
 
 ## Warning: if you enroll Secure Boot with Microsoft keys, consider disabling USB booting in your BIOS. This makes you more vulnerable to Evil maid attacks. A malicious USB stick with a Microsoft-signed bootloader is still allowed to boot when Microsoft keys are enrolled.
-- https://madaidans-insecurities.github.io/guides/linux-hardening.html#physical-security
-- https://www.kicksecure.com/wiki/AEM
+## https://madaidans-insecurities.github.io/guides/linux-hardening.html#physical-security
+## https://www.kicksecure.com/wiki/AEM
 ## Own keys with Microsoft keys:
 sudo sbctl enroll-keys -m
 
