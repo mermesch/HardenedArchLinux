@@ -1,4 +1,4 @@
-## 4_DESKTOP_ENVIRONMENT
+## 04_DESKTOP_ENVIRONMENT
 
 ## X11 is insecure. You must select a Desktop Environment that supports Wayland. Please read the discussions:
 - https://www.kicksecure.com/wiki/Dev/GNOME
