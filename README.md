@@ -1,6 +1,6 @@
 # Linux installation and hardening guide
 
-*Arch Linux, Full Disk Encryption, Secure Boot and extensive hardening
+Arch Linux, Full Disk Encryption, Secure Boot and extensive hardening
 
 Most Linux security guides are basic, outdated, or incomplete. Very few actually show you how to build a secure system from scratch. This guide does.
 
@@ -19,6 +19,40 @@ You do not need to be an activist, privacy advocate, journalist or work for a hi
 ## You are in control
 
 This guide shows you a strict path, but you are not forced to do everything. You can read through it and easily decide which security measures you want to apply and which ones you want to skip.
+
+## Guide contents
+
+- **1_COMPUTER_LAPTOP_SELECTION** - Hardware threats, laptop choice, its components and your physical habits affect security and anonymity.
+- **2_OS_SELECTION** - Operating system selection.
+- **3_INSTALLATION** - Arch Linux installation with very strong full disk encryption using argon2id and a high iter-time. GRUB is used to make boot partition encryption possible.
+- **4_DESKTOP_ENVIRONMENT** - Desktop environment selection. Why Wayland is required instead of X11. GNOME, KDE and LXQt.
+- **5_NETWORK** - Network configuration using a strictly hardened NetworkManager systemd service. MAC randomization. IPv6 disabled. Static IP with no DHCP client.
+- **6a_SECUREBOOT** - Secure Boot.
+- **6b_SECUREBOOT_SHIM** - Secure Boot with SHIM.
+- **7_FIRMWARE_UPDATE** - Firmware update.
+- **8_PRE_INSTALLATION_INFORMATION** - AppArmor, systemd sandboxing, post-quantum crypto, minimalism.
+- **9_VPN** - VPN selection and configuration. Prevent DNS leaks.
+- **10_SOME_APPS_AND_HARDENING** - Base packages, AppArmor, user account, and masking unnecessary services.
+- **11_CURL_APPARMOR** - Pacman downloads under the curl AppArmor profile.
+- **12_HARDENING_KARGS** - Kernel hardening via GRUB kernel arguments.
+- **13_SYSCTL** - sysctl hardening for kernel, userspace, and networking.
+- **14_MODULE_HARDENING** - Kernel module blacklisting.
+- **15_CHRONY** - NTS time synchronization with a hardened chronyd service.
+- **16_TOR** - Tor with AppArmor.
+- **17_PACMAN_TOR** - Pacman downloads through Tor.
+- **18_REFLECTOR** - Mirrorlist generation via torsocks, HTTPS mirrors only.
+- **19_PASSWORD** - Password hardening: pwquality, yescrypt, faillock.
+- **20_FSTAB** - Hardened mount options and tmpfs for logs and caches.
+- **21a_GNOME_HARDENING** - GNOME hardening.
+- **21b_KDE_HARDENING** - KDE Plasma hardening.
+- **22_DISABLE_COREDUMPS** - Disable core dumps.
+- **23_SYSTEM_MAP** - System.map shredded at every boot.
+- **24_USBGUARD** - USBGuard: only whitelisted USB devices work, unknown or tampered devices are blocked.
+- **25_PERMISSIONS** - Permission hardening, SETUID whitelist and file capabilities set where needed, reapplied after every update by a pacman hook.
+- **26_VIRT_MANAGER** - VMs with virt-manager/QEMU in the unprivileged user session. Clock randomized at boot and kvm-clock disabled to defeat time-based fingerprinting, passt network stack confined with AppArmor.
+- **27_HARDENED_MALLOC** - Hardened memory allocator preloaded system-wide, making heap exploitation much harder.
+- **28_BASH_HISTORY** - Bash history disabled for all users and shells, leaving no command traces on disk when /var/log is mounted as tmpfs.
+- **29_POST_INSTALLATION_HARDENING** - Post-installation checks and maintenance.
 
 ## Status of this guide
 
@@ -41,40 +75,6 @@ You can also use KickSecure or Secureblue for one of your VMs after installing t
 ## Read everything, do not copy-paste
 
 There are some hardening parts that I did not explain in depth, or explain what they exactly are. If I think you might want to skip some of the hardening, I did explain why you might want to disable it. **To not miss these notes, you have to read everything and not copy-paste without reading.**
-
-## Guide contents
-
-1_COMPUTER_LAPTOP_SELECTION - Hardware threats, laptop choice, its components and your physical habits affect security and anonymity.
-2_OS_SELECTION - Operating system selection.
-3_INSTALLATION - Arch Linux installation with very strong full disk encryption using argon2id and a high iter-time. GRUB is used to make boot partition encryption possible.
-4_DESKTOP_ENVIRONMENT - Desktop environment selection. Why Wayland is required instead of X11. GNOME, KDE and LXQt.
-5_NETWORK - Network configuration using a strictly hardened NetworkManager systemd service. MAC randomization. IPv6 disabled. Static IP with no DHCP client.
-6a_SECUREBOOT - Secure Boot.
-6b_SECUREBOOT_SHIM - Secure Boot with SHIM.
-7_FIRMWARE_UPDATE - Firmware update.
-8_PRE_INSTALLATION_INFORMATION - AppArmor, systemd sandboxing, post-quantum crypto, minimalism.
-9_VPN - VPN selection and configuration. Prevent DNS leaks.
-10_SOME_APPS_AND_HARDENING - Base packages, AppArmor, user account, and masking unnecessary services.
-11_CURL_APPARMOR - Pacman downloads under the curl AppArmor profile.
-12_HARDENING_KARGS - Kernel hardening via GRUB kernel arguments.
-13_SYSCTL - sysctl hardening for kernel, userspace, and networking.
-14_MODULE_HARDENING - Kernel module blacklisting.
-15_CHRONY - NTS time synchronization with a hardened chronyd service.
-16_TOR - Tor with AppArmor.
-17_PACMAN_TOR - Pacman downloads through Tor.
-18_REFLECTOR - Mirrorlist generation via torsocks, HTTPS mirrors only.
-19_PASSWORD - Password hardening: pwquality, yescrypt, faillock.
-20_FSTAB - Hardened mount options and tmpfs for logs and caches.
-21a_GNOME_HARDENING - GNOME hardening.
-21b_KDE_HARDENING - KDE Plasma hardening
-22_DISABLE_COREDUMPS - Disable core dumps.
-23_SYSTEM_MAP - System.map shredded at every boot.
-24_USBGUARD - USBGuard: only whitelisted USB devices work, unknown or tampered devices are blocked.
-25_PERMISSIONS - Permission hardening, SETUID whitelist and file capabilities set where needed, reapplied after every update by a pacman hook.
-26_VIRT_MANAGER - VMs with virt-manager/QEMU in the unprivileged user session. Clock randomized at boot and kvm-clock disabled to defeat time-based fingerprinting, passt network stack confined with AppArmor.
-27_HARDENED_MALLOC - Hardened memory allocator preloaded system-wide, making heap exploitation much harder.
-28_BASH_HISTORY - Bash history disabled for all users and shells, leaving no command traces on disk when /var/log is mounted as tmpfs.
-29_POST_INSTALLATION_HARDENING - Post-installation checks and maintenance.
 
 ## Warning
 
