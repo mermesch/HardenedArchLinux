@@ -101,6 +101,9 @@ sudo vim /etc/pacman.conf
 ```ini
 NoExtract = etc/xdg/autostart/geoclue-demo-agent.desktop
 ```
+## If you skipped "10_SOME_APPS_AND_HARDENING.txt". Make sure you mask the GeoClue daemon:
+sudo systemctl disable geoclue.service
+sudo systemctl mask geoclue.service
 
 ## References:
 - https://github.com/secureblue/secureblue
