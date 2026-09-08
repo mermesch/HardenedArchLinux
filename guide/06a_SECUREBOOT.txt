@@ -1,4 +1,4 @@
-## 6a_SECUREBOOT
+## 06a_SECUREBOOT
 
 ## Boot into the BIOS and enable Secureboot.
 ## Enabling Setup Mode in UEFI (BIOS)
