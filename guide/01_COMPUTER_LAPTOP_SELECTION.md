@@ -1,4 +1,4 @@
-## 1_Computer Selection, Hardware Threat Minimization and habits
+## 01_Computer Selection, Hardware Threat Minimization and habits
 
 Trusted computer hardware is fundamental to security. It is recommended to purchase and use "clean" computers that have components manufactured by reputable companies.
 
