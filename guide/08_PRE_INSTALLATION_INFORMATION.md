@@ -1,4 +1,4 @@
-## 8_PRE_INSTALLATION_INFORMATION
+## 08_PRE_INSTALLATION_INFORMATION
 
 **NOTE:** This guide asks you to reboot many times. This is deliberate. Reloading systemd can cause VPN leaks with many VPNs, so after unit changes we reboot
 
