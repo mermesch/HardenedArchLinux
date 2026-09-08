@@ -107,6 +107,10 @@ sudo vim /etc/pacman.conf
 NoExtract = etc/xdg/autostart/geoclue-demo-agent.desktop
 ```
 
+## If you skipped "10_SOME_APPS_AND_HARDENING.txt". Make sure you mask the GeoClue daemon:
+sudo systemctl disable geoclue.service
+sudo systemctl mask geoclue.service
+
 ## References:
 - https://privsec.dev/posts/linux/desktop-linux-hardening/#disabling-xwayland
 - https://mako088.github.io/arch/hardening_arch.html
