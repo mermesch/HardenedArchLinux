@@ -1,4 +1,4 @@
-## 6b_SECUREBOOT_SHIM
+## 06b_SECUREBOOT_SHIM
 
 ## Secure boot with SHIM
 ## Boot into the BIOS and enable Secureboot.
