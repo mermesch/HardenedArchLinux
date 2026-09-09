@@ -197,7 +197,7 @@ keep_suid() {
         # /usr/lib/utempter
         # rootless containers (podman/toolbox):
         # /usr/bin/newuidmap  /usr/bin/newgidmap
-        # unverified path:
+        #  Enable if you have use ssh-agent. It stores your password in a more secure way
         # /usr/bin/ssh-agent
     esac
     return 1
