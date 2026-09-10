@@ -4,7 +4,7 @@
 ## DISCLAIMER: The installation instructions also work in a VM. Just enable UEFI for the VM instead of legacy BIOS.
 ## Download the Arch Linux ISO from the Arch Linux website.
 ## Flash the ISO to a bootable USB drive.
-## Boot into your BIOS, disable Secure Boot, and make sure the date and time are set correctly!
+## Boot into your BIOS, disable Secure Boot, and make sure the date and time are set correctly! Use UTC as time zone.
 ## Boot from the USB drive and select the default Arch Linux option. Once you land at the root shell, confirm that the system booted in UEFI mode:
 ls /sys/firmware/efi/efivars
 
