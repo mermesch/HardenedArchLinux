@@ -424,7 +424,7 @@ timedatectl              # compare "Universal time" vs "RTC time"
 sudo hwclock --show; date
 
 ## This chrony configuration uses iburst for initial synchronization, which allows the time servers to see when you boot the machine. To avoid boot-time correlation, you can disable the chronyd service at boot and create a cronjob that starts chronyd at a random time instead.
-## If you do so, select the 1.5 second boot clock randomization in 26_VIRT_MANAGER.
+## If you do so, select the 1.5 second boot clock randomization for your VM in 26_VIRT_MANAGER.
 
 ## References:
 - https://www.kicksecure.com/wiki/Tirdad
