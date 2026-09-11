@@ -69,11 +69,11 @@ cpuset='1'
 ## 12. Save and restart the VM.
 
 ## 13. Check that the VM uses the TSC clocksource instead of kvm-clock. kvm-clock can enable time-based fingerprinting and linkability between the VM and the host or between your VMs. Run this command inside the guest VM:
-## If the output is tsc, the clocksource is correct. If the output is kvm-clock or something else, the VM is using the paravirtualized KVM clock, which can leak timing information that links the VM to the host or your VM to another VM.
+## If the output is tsc, the clocksource is correct. If the output is kvm-clock or something else, the VM is using the paravirtualized KVM clock, which can leak timing information that links the VM to the host or your VM to another VM. 
 cat /sys/devices/system/clocksource/clocksource0/current_clocksource
 
 
-## In the hardened VM XML we disabled kvmclock and the host RTC clock sync for the VMs If you use chrony on the host and in the VM, use different time servers. If you run chronyd on multiple VMs, consider using different time servers for each of them too.
+## In the hardened VM XML we disabled kvmclock and the host RTC clock sync for the VMs If you use chrony on the host and in the VM, use different time servers. If you run chronyd on multiple VMs, consider using different time servers for each of them too. Consider using a different exit IPs for your host and VM, including a different exit IP for every VM.
 
 ## It is even better to randomize the VM time at boot by a few milliseconds or seconds into the past or the future before your time is synced. Only do this when you understand what you are doing. Otherwise you can create stronger fingerprints instead of preventing them!
 
